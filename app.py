@@ -1,6 +1,6 @@
 # ============================================================
 # MASAR INTELLIGENCE OS
-# V4.9 - FULL ENGLISH + ARABIC TOGGLE + TASK EDIT/DELETE + IPAD AUDIO
+# V4.10 - FULL ENGLISH + ARABIC TOGGLE + TASK EDIT/DELETE + FIX
 # ============================================================
 
 import streamlit as st
@@ -338,7 +338,7 @@ def init_db():
         ))
 
 # ============================================================
-# SECURITY & AUDIO NOTIFICATIONS (IPAD HTML5 AUDIO FIX)
+# SECURITY & AUDIO NOTIFICATIONS
 # ============================================================
 
 def hash_pin(pin):
@@ -352,7 +352,6 @@ def generate_temp_pin(length=6):
     return "".join(secrets.choice(chars) for _ in range(length))
 
 def play_sound_alert():
-    """تشغيل صوت عبر عنصر HTML Audio صريح ليتجاوز حظر الأيباد والمتصفحات"""
     sound_html = """
     <audio id="masar_audio_alert" autoplay>
         <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mp3">
@@ -979,7 +978,7 @@ elif page in ["Job Descriptions", "التوصيف الوظيفي"]: job_descript
 elif page in ["AI Company Research", "بحث الشركات بالذكاء الاصطناعي"]: ai_company_research()
 elif page in ["Email Intelligence", "ذكاء البريد الإلكتروني"]: email_assistant()
 elif page in ["Notifications", "الإشعارات"]: notifications_center()
-elif page, page in ["Search", "البحث"]: global_search()
+elif page in ["Search", "البحث"]: global_search()
 elif page in ["Admin Control Center", "مركز التحكم الإداري"]: admin_center()
 elif page in ["Governance", "الحوكمة"]: governance()
 
