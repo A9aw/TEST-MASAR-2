@@ -4,31 +4,23 @@ import pandas as pd
 import plotly.express as px
 import requests
 import hashlib
-import secrets
-import os
+import base64
 
 from bs4 import BeautifulSoup
 from datetime import datetime, date
 from io import BytesIO
-from pathlib import Path
 
 # =========================================================
-# MASAR INTELLIGENCE OS V2
+# MASAR INTELLIGENCE OS
+# VERSION 2.0
 # =========================================================
 
 APP_NAME = "MASAR Intelligence OS"
 COMPANY_NAME = "MASAR for Consultancy and Business Development"
-
 DB_PATH = "masar_os.db"
 
-UPLOAD_DIR = Path("uploads")
-JD_DIR = UPLOAD_DIR / "job_descriptions"
-
-UPLOAD_DIR.mkdir(exist_ok=True)
-JD_DIR.mkdir(exist_ok=True)
-
 # =========================================================
-# PAGE
+# PAGE CONFIG
 # =========================================================
 
 st.set_page_config(
@@ -54,21 +46,29 @@ def get_db():
 def execute(sql, params=()):
     conn = get_db()
     cur = conn.cursor()
+
     cur.execute(sql, params)
+
     conn.commit()
+
     result = cur.lastrowid
+
     conn.close()
+
     return result
 
 
 def query(sql, params=()):
     conn = get_db()
+
     df = pd.read_sql_query(
         sql,
         conn,
         params=params
     )
+
     conn.close()
+
     return df
 
 
@@ -76,14 +76,14 @@ def query(sql, params=()):
 # SECURITY
 # =========================================================
 
-def hash_password(password):
+def hash_pin(pin):
     return hashlib.sha256(
-        password.encode()
+        pin.encode()
     ).hexdigest()
 
 
-def verify_password(password, hashed):
-    return hash_password(password) == hashed
+def verify_pin(pin, stored_hash):
+    return hash_pin(pin) == stored_hash
 
 
 # =========================================================
@@ -115,7 +115,7 @@ def init_db():
     """)
 
     # -----------------------------------------------------
-    # CHAT
+    # MESSAGES
     # -----------------------------------------------------
 
     cur.execute("""
@@ -130,20 +130,67 @@ def init_db():
     """)
 
     # -----------------------------------------------------
-    # JOB DESCRIPTION FILES
+    # TASKS
     # -----------------------------------------------------
 
     cur.execute("""
-    CREATE TABLE IF NOT EXISTS job_description_files (
+    CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        assigned_to INTEGER,
+        created_by INTEGER,
+        title TEXT NOT NULL,
+        description TEXT,
+        priority TEXT DEFAULT 'Medium',
+        status TEXT DEFAULT 'Pending',
+        completion INTEGER DEFAULT 0,
+        due_date TEXT,
+        created_at TEXT,
+        completed_at TEXT
+    )
+    """)
+
+    # -----------------------------------------------------
+    # PERFORMANCE REVIEWS
+    # -----------------------------------------------------
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS performance_reviews (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        employee_id INTEGER,
+        period TEXT,
+        manager_rating REAL DEFAULT 0,
+        notes TEXT,
+        reviewed_by INTEGER,
+        reviewed_at TEXT
+    )
+    """)
+
+    # -----------------------------------------------------
+    # JOB DESCRIPTION DOCUMENTS
+    # -----------------------------------------------------
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS job_descriptions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         employee_id INTEGER,
         title TEXT,
         file_name TEXT,
-        file_path TEXT,
-        file_size INTEGER,
+        file_data BLOB,
+        extracted_text TEXT,
         uploaded_by INTEGER,
         uploaded_at TEXT,
         notes TEXT
+    )
+    """)
+
+    # -----------------------------------------------------
+    # SETTINGS
+    # -----------------------------------------------------
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
     )
     """)
 
@@ -186,24 +233,6 @@ def init_db():
     """)
 
     # -----------------------------------------------------
-    # CONTACTS
-    # -----------------------------------------------------
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS contacts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        company_id INTEGER,
-        name TEXT,
-        position TEXT,
-        email TEXT,
-        phone TEXT,
-        relationship TEXT,
-        notes TEXT,
-        created_at TEXT
-    )
-    """)
-
-    # -----------------------------------------------------
     # MEETINGS
     # -----------------------------------------------------
 
@@ -216,23 +245,6 @@ def init_db():
         attendees TEXT,
         outcome TEXT,
         next_steps TEXT,
-        notes TEXT
-    )
-    """)
-
-    # -----------------------------------------------------
-    # FOLLOWUPS
-    # -----------------------------------------------------
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS followups (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        company_id INTEGER,
-        title TEXT,
-        due_date TEXT,
-        priority TEXT,
-        status TEXT DEFAULT 'Open',
-        owner TEXT,
         notes TEXT
     )
     """)
@@ -256,7 +268,7 @@ def init_db():
     conn.close()
 
     # -----------------------------------------------------
-    # CREATE DEFAULT ADMIN
+    # DEFAULT ADMIN
     # -----------------------------------------------------
 
     admins = query(
@@ -264,8 +276,6 @@ def init_db():
     )
 
     if admins.empty:
-
-        admin_pin = "1234"
 
         execute(
             """
@@ -287,7 +297,7 @@ def init_db():
                 "MASAR Administrator",
                 "System Administrator",
                 "",
-                hash_password(admin_pin),
+                hash_pin("1234"),
                 "Admin",
                 "Active",
                 datetime.now().isoformat()
@@ -314,7 +324,7 @@ st.markdown("""
         ),
         radial-gradient(
             circle at 90% 10%,
-            rgba(30,58,138,.10),
+            rgba(30,58,138,.12),
             transparent 25%
         ),
         #0B1220;
@@ -327,7 +337,8 @@ section[data-testid="stSidebar"] {
             #07111F 0%,
             #0B1E36 100%
         );
-    border-right:1px solid rgba(56,189,248,.15);
+    border-right:
+        1px solid rgba(56,189,248,.15);
 }
 
 section[data-testid="stSidebar"] * {
@@ -349,13 +360,13 @@ p,label {
 }
 
 .masar-tag {
-    font-size:11px;
+    font-size:10px;
     color:#38BDF8;
     letter-spacing:2px;
 }
 
 .header {
-    padding:20px 0 25px 0;
+    padding:20px 0 25px;
 }
 
 .title {
@@ -366,7 +377,7 @@ p,label {
 
 .subtitle {
     color:#38BDF8;
-    font-size:12px;
+    font-size:11px;
     text-transform:uppercase;
     letter-spacing:2px;
 }
@@ -381,7 +392,7 @@ p,label {
     border:1px solid rgba(56,189,248,.13);
     border-radius:18px;
     padding:20px;
-    min-height:120px;
+    min-height:125px;
 }
 
 .kpi-label {
@@ -403,12 +414,23 @@ p,label {
     font-size:12px;
 }
 
+.profile {
+    background:
+        linear-gradient(
+            145deg,
+            #10243D,
+            #0B1E36
+        );
+    border:1px solid rgba(56,189,248,.13);
+    border-radius:18px;
+    padding:18px;
+}
+
 .chat-message {
-    padding:13px 16px;
-    border-radius:15px;
+    padding:14px;
     margin:8px 0;
-    background:rgba(20,36,58,.85);
-    border:1px solid rgba(56,189,248,.08);
+    border-radius:15px;
+    background:#10243A;
 }
 
 .chat-me {
@@ -419,20 +441,21 @@ p,label {
     border-left:3px solid #64748B;
 }
 
-.profile-card {
+.performance {
     background:
         linear-gradient(
             145deg,
             #10243D,
             #0B1E36
         );
-    padding:25px;
     border-radius:20px;
-    border:1px solid rgba(56,189,248,.12);
+    padding:25px;
+    text-align:center;
+    border:1px solid rgba(56,189,248,.15);
 }
 
 .score {
-    font-size:55px;
+    font-size:58px;
     font-weight:900;
     color:#38BDF8;
 }
@@ -442,23 +465,27 @@ p,label {
 
 
 # =========================================================
-# HELPERS
+# UI HELPERS
 # =========================================================
 
-def page_header(title, subtitle=""):
+def header(title, subtitle=""):
 
     st.markdown(
         f"""
         <div class="header">
+
             <div class="subtitle">
                 {COMPANY_NAME}
             </div>
+
             <div class="title">
                 {title}
             </div>
+
             <div style="color:#8295AA;">
                 {subtitle}
             </div>
+
         </div>
         """,
         unsafe_allow_html=True
@@ -470,9 +497,19 @@ def kpi(label, value, note=""):
     st.markdown(
         f"""
         <div class="kpi">
-            <div class="kpi-label">{label}</div>
-            <div class="kpi-value">{value}</div>
-            <div class="kpi-note">{note}</div>
+
+            <div class="kpi-label">
+                {label}
+            </div>
+
+            <div class="kpi-value">
+                {value}
+            </div>
+
+            <div class="kpi-note">
+                {note}
+            </div>
+
         </div>
         """,
         unsafe_allow_html=True
@@ -480,20 +517,136 @@ def kpi(label, value, note=""):
 
 
 # =========================================================
+# LOGO
+# =========================================================
+
+def get_logo():
+
+    row = query(
+        """
+        SELECT value
+        FROM settings
+        WHERE key='logo'
+        """
+    )
+
+    if row.empty:
+        return None
+
+    try:
+        return base64.b64decode(
+            row.iloc[0]["value"]
+        )
+
+    except Exception:
+        return None
+
+
+def display_logo():
+
+    logo = get_logo()
+
+    if logo:
+
+        st.sidebar.image(
+            logo,
+            width=150
+        )
+
+    else:
+
+        st.sidebar.markdown(
+            """
+            <div class="masar-logo">
+                ◈ MASAR
+            </div>
+
+            <div class="masar-tag">
+                INTELLIGENCE OS
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+
+# =========================================================
+# NOTIFICATION SOUND
+# =========================================================
+
+def notification_sound():
+
+    st.components.v1.html(
+        """
+        <script>
+
+        try {
+
+            const AudioContext =
+                window.AudioContext ||
+                window.webkitAudioContext;
+
+            const ctx = new AudioContext();
+
+            const oscillator =
+                ctx.createOscillator();
+
+            const gain =
+                ctx.createGain();
+
+            oscillator.type = "sine";
+
+            oscillator.frequency.setValueAtTime(
+                880,
+                ctx.currentTime
+            );
+
+            gain.gain.setValueAtTime(
+                0.0001,
+                ctx.currentTime
+            );
+
+            gain.gain.exponentialRampToValueAtTime(
+                0.18,
+                ctx.currentTime + 0.02
+            );
+
+            gain.gain.exponentialRampToValueAtTime(
+                0.0001,
+                ctx.currentTime + 0.30
+            );
+
+            oscillator.connect(gain);
+            gain.connect(ctx.destination);
+
+            oscillator.start();
+
+            oscillator.stop(
+                ctx.currentTime + 0.30
+            );
+
+        } catch(e) {}
+
+        </script>
+        """,
+        height=0
+    )
+
+
+# =========================================================
 # LOGIN
 # =========================================================
 
-def login_screen():
+def login():
 
     st.markdown(
         """
         <div style="
-            max-width:520px;
-            margin:80px auto;
             text-align:center;
+            margin-top:90px;
         ">
+
             <div style="
-                font-size:55px;
+                font-size:65px;
                 font-weight:900;
                 color:white;
             ">
@@ -501,7 +654,7 @@ def login_screen():
             </div>
 
             <div style="
-                font-size:34px;
+                font-size:38px;
                 font-weight:900;
                 color:white;
             ">
@@ -515,224 +668,769 @@ def login_screen():
             ">
                 INTELLIGENCE OS
             </div>
+
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    st.markdown("### Secure Login")
+    st.write("")
 
-    with st.form("login"):
+    left, center, right = st.columns(
+        [1, 2, 1]
+    )
 
-        code = st.text_input(
-            "Employee Code",
-            placeholder="e.g. EMP001"
+    with center:
+
+        st.markdown(
+            "### Secure Employee Login"
         )
 
-        pin = st.text_input(
-            "PIN",
-            type="password",
-            placeholder="Enter your PIN"
-        )
+        with st.form("login_form"):
 
-        login = st.form_submit_button(
-            "SIGN IN",
-            use_container_width=True
-        )
-
-        if login:
-
-            user = query(
-                """
-                SELECT *
-                FROM employees
-                WHERE employee_code=?
-                AND status='Active'
-                """,
-                (code.upper().strip(),)
+            code = st.text_input(
+                "Employee Code"
             )
 
-            if user.empty:
+            pin = st.text_input(
+                "PIN",
+                type="password"
+            )
 
-                st.error(
-                    "Invalid employee code or account inactive."
+            submit = st.form_submit_button(
+                "SIGN IN",
+                use_container_width=True
+            )
+
+            if submit:
+
+                users = query(
+                    """
+                    SELECT *
+                    FROM employees
+                    WHERE employee_code=?
+                    AND status='Active'
+                    """,
+                    (
+                        code.upper().strip(),
+                    )
                 )
 
-            else:
+                if users.empty:
 
-                employee = user.iloc[0]
-
-                if verify_password(
-                    pin,
-                    employee["pin_hash"]
-                ):
-
-                    st.session_state["authenticated"] = True
-                    st.session_state["user_id"] = int(
-                        employee["id"]
+                    st.error(
+                        "Invalid employee code."
                     )
-                    st.session_state["user_name"] = employee[
-                        "full_name"
-                    ]
-                    st.session_state["user_role"] = employee[
-                        "role"
-                    ]
-                    st.session_state["employee_code"] = employee[
-                        "employee_code"
-                    ]
-
-                    st.rerun()
 
                 else:
 
-                    st.error(
-                        "Invalid PIN."
-                    )
+                    user = users.iloc[0]
+
+                    if verify_pin(
+                        pin,
+                        user["pin_hash"]
+                    ):
+
+                        st.session_state[
+                            "authenticated"
+                        ] = True
+
+                        st.session_state[
+                            "user_id"
+                        ] = int(user["id"])
+
+                        st.session_state[
+                            "user_name"
+                        ] = user["full_name"]
+
+                        st.session_state[
+                            "user_role"
+                        ] = user["role"]
+
+                        st.session_state[
+                            "employee_code"
+                        ] = user["employee_code"]
+
+                        st.session_state[
+                            "sound_enabled"
+                        ] = False
+
+                        st.rerun()
+
+                    else:
+
+                        st.error(
+                            "Invalid PIN."
+                        )
 
 
 # =========================================================
-# ADMIN — EMPLOYEE MANAGEMENT
+# PERFORMANCE ENGINE
 # =========================================================
 
-def employee_management():
+def calculate_performance(employee_id):
 
-    page_header(
-        "Employee Management",
-        "Create and manage internal MASAR accounts"
+    tasks = query(
+        """
+        SELECT *
+        FROM tasks
+        WHERE assigned_to=?
+        """,
+        (employee_id,)
+    )
+
+    if tasks.empty:
+
+        task_score = 0
+        on_time_score = 0
+
+    else:
+
+        task_score = tasks[
+            "completion"
+        ].mean()
+
+        completed = tasks[
+            tasks["status"] == "Completed"
+        ]
+
+        if completed.empty:
+
+            on_time_score = 0
+
+        else:
+
+            today = date.today().isoformat()
+
+            on_time = completed[
+                completed["completed_at"].fillna("")
+                <= completed["due_date"].fillna("")
+            ]
+
+            on_time_score = (
+                len(on_time)
+                /
+                len(completed)
+                *
+                100
+            )
+
+    reviews = query(
+        """
+        SELECT manager_rating
+        FROM performance_reviews
+        WHERE employee_id=?
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (employee_id,)
+    )
+
+    if reviews.empty:
+
+        manager_rating = 0
+
+    else:
+
+        manager_rating = float(
+            reviews.iloc[0]["manager_rating"]
+        )
+
+    score = (
+        task_score * 0.60
+        +
+        on_time_score * 0.25
+        +
+        manager_rating * 0.15
+    )
+
+    return {
+        "score": round(score),
+        "task_score": round(task_score),
+        "on_time": round(on_time_score),
+        "manager_rating": round(
+            manager_rating
+        )
+    }
+
+
+# =========================================================
+# EMPLOYEE DASHBOARD
+# =========================================================
+
+def employee_dashboard():
+
+    user_id = st.session_state[
+        "user_id"
+    ]
+
+    user = query(
+        """
+        SELECT *
+        FROM employees
+        WHERE id=?
+        """,
+        (user_id,)
+    ).iloc[0]
+
+    performance = calculate_performance(
+        user_id
+    )
+
+    tasks = query(
+        """
+        SELECT *
+        FROM tasks
+        WHERE assigned_to=?
+        ORDER BY due_date
+        """,
+        (user_id,)
+    )
+
+    pending = len(
+        tasks[
+            tasks["status"] != "Completed"
+        ]
+    ) if not tasks.empty else 0
+
+    overdue = 0
+
+    if not tasks.empty:
+
+        today = date.today().isoformat()
+
+        overdue = len(
+            tasks[
+                (tasks["status"] != "Completed")
+                &
+                (tasks["due_date"] < today)
+            ]
+        )
+
+    header(
+        f"Welcome, {user['full_name']}",
+        f"{user['position']} • {user['role']}"
+    )
+
+    c1,c2,c3,c4 = st.columns(4)
+
+    with c1:
+        kpi(
+            "Performance",
+            f"{performance['score']}%",
+            "Current score"
+        )
+
+    with c2:
+        kpi(
+            "Open Tasks",
+            pending,
+            "Assigned to you"
+        )
+
+    with c3:
+        kpi(
+            "Overdue",
+            overdue,
+            "Requires action"
+        )
+
+    with c4:
+        kpi(
+            "Employee Code",
+            user["employee_code"],
+            "Account"
+        )
+
+    st.write("")
+
+    left,right = st.columns(2)
+
+    with left:
+
+        st.markdown(
+            "### Your Performance"
+        )
+
+        st.markdown(
+            f"""
+            <div class="performance">
+
+                <div class="score">
+                    {performance['score']}%
+                </div>
+
+                <div style="color:#94A3B8;">
+                    Overall Performance
+                </div>
+
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.write("")
+
+        st.progress(
+            performance["task_score"] / 100
+        )
+
+        st.caption(
+            f"Task Completion: "
+            f"{performance['task_score']}%"
+        )
+
+        st.progress(
+            performance["on_time"] / 100
+        )
+
+        st.caption(
+            f"On-Time Delivery: "
+            f"{performance['on_time']}%"
+        )
+
+        st.progress(
+            performance["manager_rating"] / 100
+        )
+
+        st.caption(
+            f"Manager Rating: "
+            f"{performance['manager_rating']}%"
+        )
+
+    with right:
+
+        st.markdown(
+            "### Your Tasks"
+
+        )
+
+        if tasks.empty:
+
+            st.info(
+                "No tasks assigned."
+            )
+
+        else:
+
+            st.dataframe(
+                tasks[
+                    [
+                        "title",
+                        "priority",
+                        "status",
+                        "completion",
+                        "due_date"
+                    ]
+                ],
+                use_container_width=True,
+                hide_index=True
+            )
+
+
+# =========================================================
+# TASK ORGANIZER
+# =========================================================
+
+def task_organizer():
+
+    header(
+        "Task Organizer",
+        "Assign, monitor and evaluate employee execution"
     )
 
     employees = query(
         """
-        SELECT
-            id,
-            employee_code,
-            full_name,
-            position,
-            email,
-            phone,
-            role,
-            status,
-            created_at
+        SELECT id, full_name, position
         FROM employees
-        ORDER BY id DESC
+        WHERE status='Active'
+        ORDER BY full_name
         """
     )
 
-    st.dataframe(
-        employees,
-        use_container_width=True,
-        hide_index=True
-    )
+    role = st.session_state[
+        "user_role"
+    ]
 
-    st.markdown("### Create Employee Account")
+    user_id = st.session_state[
+        "user_id"
+    ]
 
-    with st.form("new_employee"):
+    # -----------------------------------------------------
+    # EMPLOYEE VIEW
+    # -----------------------------------------------------
 
-        c1, c2 = st.columns(2)
+    if role not in [
+        "Admin",
+        "CEO",
+        "Founder & Managing Director"
+    ]:
 
-        with c1:
-
-            code = st.text_input(
-                "Employee Code *",
-                placeholder="EMP001"
-            )
-
-            name = st.text_input(
-                "Full Name *"
-            )
-
-            position = st.text_input(
-                "Position"
-            )
-
-            email = st.text_input(
-                "Email"
-            )
-
-        with c2:
-
-            phone = st.text_input(
-                "Phone"
-            )
-
-            role = st.selectbox(
-                "Role",
-                [
-                    "Employee",
-                    "Manager",
-                    "Admin"
-                ]
-            )
-
-            pin = st.text_input(
-                "Temporary PIN *",
-                type="password"
-            )
-
-            status = st.selectbox(
-                "Status",
-                [
-                    "Active",
-                    "Inactive"
-                ]
-            )
-
-        submit = st.form_submit_button(
-            "CREATE ACCOUNT"
+        tasks = query(
+            """
+            SELECT *
+            FROM tasks
+            WHERE assigned_to=?
+            ORDER BY due_date
+            """,
+            (user_id,)
         )
 
-        if submit:
+        st.markdown(
+            "### My Tasks"
+        )
 
-            if not code or not name or not pin:
+        if not tasks.empty:
 
-                st.error(
-                    "Employee code, name and PIN are required."
+            for _, task in tasks.iterrows():
+
+                st.markdown(
+                    f"""
+                    **{task['title']}**
+
+                    Priority: {task['priority']}  
+                    Due: {task['due_date']}  
+                    Status: {task['status']}
+                    """
                 )
 
-            else:
+                progress = st.slider(
+                    f"Completion — Task {task['id']}",
+                    0,
+                    100,
+                    int(task["completion"]),
+                    key=f"progress_{task['id']}"
+                )
 
-                try:
+                if st.button(
+                    "Update",
+                    key=f"update_{task['id']}"
+                ):
+
+                    status = (
+                        "Completed"
+                        if progress == 100
+                        else "In Progress"
+                    )
+
+                    completed_at = (
+                        datetime.now().isoformat()
+                        if progress == 100
+                        else None
+                    )
 
                     execute(
                         """
-                        INSERT INTO employees
-                        (
-                            employee_code,
-                            full_name,
-                            position,
-                            email,
-                            phone,
-                            pin_hash,
-                            role,
-                            status,
-                            created_at
-                        )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        UPDATE tasks
+                        SET
+                            completion=?,
+                            status=?,
+                            completed_at=?
+                        WHERE id=?
                         """,
                         (
-                            code.upper(),
-                            name,
-                            position,
-                            email,
-                            phone,
-                            hash_password(pin),
-                            role,
+                            progress,
                             status,
-                            datetime.now().isoformat()
+                            completed_at,
+                            int(task["id"])
                         )
                     )
 
                     st.success(
-                        f"Account created for {name}."
+                        "Task updated."
                     )
 
                     st.rerun()
 
-                except sqlite3.IntegrityError:
+        else:
 
-                    st.error(
-                        "This employee code already exists."
+            st.info(
+                "No tasks assigned."
+            )
+
+        return
+
+    # -----------------------------------------------------
+    # MANAGEMENT VIEW
+    # -----------------------------------------------------
+
+    tab1,tab2,tab3 = st.tabs(
+        [
+            "Task Board",
+            "Create Task",
+            "Performance Reviews"
+        ]
+    )
+
+    with tab1:
+
+        tasks = query(
+            """
+            SELECT
+                t.id,
+                e.full_name AS employee,
+                t.title,
+                t.priority,
+                t.status,
+                t.completion,
+                t.due_date
+            FROM tasks t
+            LEFT JOIN employees e
+            ON t.assigned_to=e.id
+            ORDER BY t.due_date
+            """
+        )
+
+        st.dataframe(
+            tasks,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    with tab2:
+
+        employee_map = dict(
+            zip(
+                employees["full_name"],
+                employees["id"]
+            )
+        )
+
+        with st.form("create_task"):
+
+            employee = st.selectbox(
+                "Assign To",
+                list(employee_map.keys())
+            )
+
+            title = st.text_input(
+                "Task Title"
+            )
+
+            description = st.text_area(
+                "Description"
+            )
+
+            c1,c2,c3 = st.columns(3)
+
+            with c1:
+
+                priority = st.selectbox(
+                    "Priority",
+                    [
+                        "Low",
+                        "Medium",
+                        "High",
+                        "Critical"
+                    ]
+                )
+
+            with c2:
+
+                due_date = st.date_input(
+                    "Due Date"
+                )
+
+            with c3:
+
+                completion = st.slider(
+                    "Initial Completion",
+                    0,
+                    100,
+                    0
+                )
+
+            submit = st.form_submit_button(
+                "CREATE TASK"
+            )
+
+            if submit:
+
+                execute(
+                    """
+                    INSERT INTO tasks
+                    (
+                        assigned_to,
+                        created_by,
+                        title,
+                        description,
+                        priority,
+                        status,
+                        completion,
+                        due_date,
+                        created_at
                     )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        employee_map[employee],
+                        user_id,
+                        title,
+                        description,
+                        priority,
+                        "Pending",
+                        completion,
+                        due_date.isoformat(),
+                        datetime.now().isoformat()
+                    )
+                )
+
+                st.success(
+                    "Task assigned."
+                )
+
+                st.rerun()
+
+    with tab3:
+
+        employee = st.selectbox(
+            "Employee",
+            list(
+                dict(
+                    zip(
+                        employees["full_name"],
+                        employees["id"]
+                    )
+                ).keys()
+            ),
+            key="review_employee"
+        )
+
+        employee_map = dict(
+            zip(
+                employees["full_name"],
+                employees["id"]
+            )
+        )
+
+        rating = st.slider(
+            "Manager Rating",
+            0,
+            100,
+            80
+        )
+
+        period = st.text_input(
+            "Review Period",
+            value=datetime.now().strftime(
+                "%B %Y"
+            )
+        )
+
+        notes = st.text_area(
+            "Performance Notes"
+        )
+
+        if st.button(
+            "SAVE PERFORMANCE REVIEW"
+        ):
+
+            execute(
+                """
+                INSERT INTO performance_reviews
+                (
+                    employee_id,
+                    period,
+                    manager_rating,
+                    notes,
+                    reviewed_by,
+                    reviewed_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    employee_map[employee],
+                    period,
+                    rating,
+                    notes,
+                    user_id,
+                    datetime.now().isoformat()
+                )
+            )
+
+            st.success(
+                "Performance review saved."
+            )
+
+            st.rerun()
+
+
+# =========================================================
+# PERFORMANCE CENTER
+# =========================================================
+
+def performance_center():
+
+    header(
+        "Performance Center",
+        "Executive view of employee performance"
+    )
+
+    employees = query(
+        """
+        SELECT *
+        FROM employees
+        WHERE status='Active'
+        ORDER BY full_name
+        """
+    )
+
+    records = []
+
+    for _, employee in employees.iterrows():
+
+        score = calculate_performance(
+            int(employee["id"])
+        )
+
+        records.append(
+            {
+                "Employee": employee["full_name"],
+                "Position": employee["position"],
+                "Role": employee["role"],
+                "Performance": score["score"],
+                "Task Completion": score["task_score"],
+                "On-Time Delivery": score["on_time"],
+                "Manager Rating": score["manager_rating"]
+            }
+        )
+
+    df = pd.DataFrame(records)
+
+    if df.empty:
+
+        st.info(
+            "No employee performance data."
+        )
+
+        return
+
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.markdown(
+        "### Performance Overview"
+    )
+
+    fig = px.bar(
+        df,
+        x="Employee",
+        y="Performance",
+        text="Performance"
+    )
+
+    fig.update_layout(
+        template="plotly_dark",
+        yaxis_range=[0,100]
+    )
+
+    st.plotly_chart(
+        fig,
+        use_container_width=True
+    )
 
 
 # =========================================================
@@ -741,18 +1439,19 @@ def employee_management():
 
 def internal_chat():
 
-    page_header(
-        "MASAR Internal Chat",
-        "Private employee-to-employee communication"
+    header(
+        "Internal Chat",
+        "Secure employee-to-employee communication"
     )
 
-    current_user = st.session_state["user_id"]
+    current_user = st.session_state[
+        "user_id"
+    ]
 
     employees = query(
         """
         SELECT
             id,
-            employee_code,
             full_name,
             position
         FROM employees
@@ -766,105 +1465,82 @@ def internal_chat():
     if employees.empty:
 
         st.info(
-            "No other active employees available."
+            "No other employees available."
         )
 
         return
 
-    employee_options = {
-        f"{row['full_name']} — {row['position']}":
-        int(row["id"])
-        for _, row in employees.iterrows()
-    }
-
-    selected = st.selectbox(
-        "Chat with",
-        list(employee_options.keys())
+    employee_map = dict(
+        zip(
+            employees["full_name"],
+            employees["id"]
+        )
     )
 
-    receiver_id = employee_options[selected]
+    selected = st.selectbox(
+        "Chat With",
+        list(employee_map.keys())
+    )
 
-    # -----------------------------------------------------
-    # MESSAGES
-    # -----------------------------------------------------
+    receiver = employee_map[selected]
 
     messages = query(
         """
         SELECT
             m.*,
-            e.full_name AS sender_name
+            e.full_name AS sender
         FROM messages m
         LEFT JOIN employees e
         ON m.sender_id=e.id
         WHERE
-            (
-                sender_id=? AND receiver_id=?
-            )
-            OR
-            (
-                sender_id=? AND receiver_id=?
-            )
-        ORDER BY created_at ASC
+        (
+            sender_id=?
+            AND receiver_id=?
+        )
+        OR
+        (
+            sender_id=?
+            AND receiver_id=?
+        )
+        ORDER BY created_at
         """,
         (
             current_user,
-            receiver_id,
-            receiver_id,
+            receiver,
+            receiver,
             current_user
         )
     )
 
-    chat_box = st.container(height=450)
+    for _, msg in messages.iterrows():
 
-    with chat_box:
+        css = (
+            "chat-me"
+            if int(msg["sender_id"]) == current_user
+            else "chat-other"
+        )
 
-        if messages.empty:
+        st.markdown(
+            f"""
+            <div class="chat-message {css}">
+                <b>{msg['sender']}</b><br>
+                {msg['message']}
+                <div style="
+                    color:#71849A;
+                    font-size:10px;
+                    margin-top:5px;
+                ">
+                    {msg['created_at']}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-            st.info(
-                "No messages yet. Start the conversation."
-            )
-
-        else:
-
-            for _, msg in messages.iterrows():
-
-                mine = (
-                    int(msg["sender_id"])
-                    == current_user
-                )
-
-                css = (
-                    "chat-me"
-                    if mine
-                    else "chat-other"
-                )
-
-                st.markdown(
-                    f"""
-                    <div class="chat-message {css}">
-                        <b>{msg['sender_name']}</b><br>
-                        {msg['message']}
-                        <div style="
-                            font-size:10px;
-                            color:#6F849B;
-                            margin-top:5px;
-                        ">
-                            {msg['created_at']}
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-    # -----------------------------------------------------
-    # SEND
-    # -----------------------------------------------------
-
-    with st.form("send_message"):
+    with st.form("message_form"):
 
         message = st.text_input(
-            "Message",
-            placeholder="Write your message..."
+            "Message"
         )
 
         send = st.form_submit_button(
@@ -886,8 +1562,8 @@ def internal_chat():
                 """,
                 (
                     current_user,
-                    receiver_id,
-                    message.strip(),
+                    receiver,
+                    message,
                     datetime.now().strftime(
                         "%Y-%m-%d %H:%M:%S"
                     )
@@ -901,35 +1577,31 @@ def internal_chat():
 # JOB DESCRIPTION LIBRARY
 # =========================================================
 
-def job_description_library():
+def job_descriptions():
 
-    page_header(
+    header(
         "Job Description Library",
-        "Central repository for approved employee job descriptions"
+        "Central employee documentation repository"
     )
 
     employees = query(
         """
-        SELECT
-            id,
-            employee_code,
-            full_name,
-            position
+        SELECT id, full_name, position
         FROM employees
         ORDER BY full_name
         """
     )
 
-    tab1, tab2 = st.tabs(
+    tab1,tab2 = st.tabs(
         [
-            "📁 Document Library",
-            "⬆️ Upload Job Description"
+            "Document Library",
+            "Upload Word Document"
         ]
     )
 
     with tab1:
 
-        files = query(
+        docs = query(
             """
             SELECT
                 j.id,
@@ -937,344 +1609,417 @@ def job_description_library():
                 j.file_name,
                 e.full_name AS employee,
                 j.uploaded_at,
-                j.file_size,
                 j.notes
-            FROM job_description_files j
+            FROM job_descriptions j
             LEFT JOIN employees e
             ON j.employee_id=e.id
             ORDER BY j.id DESC
             """
         )
 
-        if files.empty:
+        if docs.empty:
 
             st.info(
-                "No job description files uploaded yet."
+                "No job descriptions uploaded yet."
             )
 
         else:
 
             st.dataframe(
-                files,
+                docs,
                 use_container_width=True,
                 hide_index=True
             )
 
-            st.markdown("### Open Document")
-
-            selected_file = st.selectbox(
-                "Select document",
-                files["id"].tolist()
+            selected = st.selectbox(
+                "Select Document",
+                docs["id"].tolist()
             )
 
-            row = files[
-                files["id"] == selected_file
+            row = docs[
+                docs["id"] == selected
             ].iloc[0]
 
-            path = Path(
-                row["file_path"]
+            data = query(
+                """
+                SELECT *
+                FROM job_descriptions
+                WHERE id=?
+                """,
+                (int(selected),)
+            ).iloc[0]
+
+            st.markdown(
+                f"### {data['title']}"
             )
 
-            if path.exists():
+            if data["extracted_text"]:
 
-                with open(
-                    path,
-                    "rb"
-                ) as f:
+                with st.expander(
+                    "View extracted Word content"
+                ):
 
-                    st.download_button(
-                        "Download Word File",
-                        data=f.read(),
-                        file_name=row["file_name"],
-                        mime=(
-                            "application/vnd.openxmlformats-"
-                            "officedocument.wordprocessingml.document"
-                        )
+                    st.text_area(
+                        "Content",
+                        data["extracted_text"],
+                        height=450
                     )
+
+            st.download_button(
+                "DOWNLOAD WORD FILE",
+                data=data["file_data"],
+                file_name=data["file_name"],
+                mime=(
+                    "application/vnd.openxmlformats-"
+                    "officedocument.wordprocessingml.document"
+                )
+            )
 
     with tab2:
 
-        if st.session_state["user_role"] != "Admin":
+        if st.session_state[
+            "user_role"
+        ] != "Admin":
 
             st.warning(
-                "Only administrators can upload job descriptions."
+                "Only Admin can upload Job Descriptions."
             )
 
-        else:
+            return
 
-            with st.form(
-                "upload_jd",
-                clear_on_submit=True
-            ):
+        employee_map = {
+            f"{row['full_name']} — {row['position']}":
+            int(row["id"])
+            for _, row in employees.iterrows()
+        }
 
-                title = st.text_input(
-                    "Document Title"
+        title = st.text_input(
+            "Document Title"
+        )
+
+        employee = st.selectbox(
+            "Employee",
+            ["General"] +
+            list(employee_map.keys())
+        )
+
+        uploaded = st.file_uploader(
+            "Upload Word File",
+            type=["docx"]
+        )
+
+        notes = st.text_area(
+            "Notes"
+        )
+
+        if st.button(
+            "UPLOAD DOCUMENT"
+        ):
+
+            if uploaded is None:
+
+                st.error(
+                    "Please upload a Word file."
                 )
 
-                employee = st.selectbox(
-                    "Assigned Employee",
-                    ["General / Not Assigned"] +
-                    employees["full_name"].tolist()
+            else:
+
+                extracted = ""
+
+                try:
+
+                    from docx import Document
+
+                    doc = Document(
+                        BytesIO(
+                            uploaded.getvalue()
+                        )
+                    )
+
+                    extracted = "\n".join(
+                        p.text
+                        for p in doc.paragraphs
+                        if p.text.strip()
+                    )
+
+                except Exception:
+
+                    extracted = (
+                        "Unable to extract text."
+                    )
+
+                employee_id = None
+
+                if employee != "General":
+
+                    employee_id = employee_map[
+                        employee
+                    ]
+
+                execute(
+                    """
+                    INSERT INTO job_descriptions
+                    (
+                        employee_id,
+                        title,
+                        file_name,
+                        file_data,
+                        extracted_text,
+                        uploaded_by,
+                        uploaded_at,
+                        notes
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        employee_id,
+                        title or uploaded.name,
+                        uploaded.name,
+                        uploaded.getvalue(),
+                        extracted,
+                        st.session_state[
+                            "user_id"
+                        ],
+                        datetime.now().isoformat(),
+                        notes
+                    )
                 )
 
-                uploaded = st.file_uploader(
-                    "Upload Word Job Description",
-                    type=["docx"]
+                st.success(
+                    "Job Description uploaded successfully."
                 )
 
-                notes = st.text_area(
-                    "Notes"
-                )
-
-                submit = st.form_submit_button(
-                    "UPLOAD DOCUMENT"
-                )
-
-                if submit:
-
-                    if uploaded is None:
-
-                        st.error(
-                            "Please upload a Word document."
-                        )
-
-                    else:
-
-                        safe_name = (
-                            uploaded.name
-                            .replace("/", "_")
-                            .replace("\\", "_")
-                        )
-
-                        unique_name = (
-                            f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
-                            f"_{safe_name}"
-                        )
-
-                        path = JD_DIR / unique_name
-
-                        with open(
-                            path,
-                            "wb"
-                        ) as f:
-
-                            f.write(
-                                uploaded.getbuffer()
-                            )
-
-                        employee_id = None
-
-                        if employee != "General / Not Assigned":
-
-                            employee_id = int(
-                                employees[
-                                    employees["full_name"]
-                                    == employee
-                                ]["id"].iloc[0]
-                            )
-
-                        execute(
-                            """
-                            INSERT INTO job_description_files
-                            (
-                                employee_id,
-                                title,
-                                file_name,
-                                file_path,
-                                file_size,
-                                uploaded_by,
-                                uploaded_at,
-                                notes
-                            )
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                            (
-                                employee_id,
-                                title or uploaded.name,
-                                uploaded.name,
-                                str(path),
-                                uploaded.size,
-                                st.session_state[
-                                    "user_id"
-                                ],
-                                datetime.now().isoformat(),
-                                notes
-                            )
-                        )
-
-                        st.success(
-                            "Job description uploaded successfully."
-                        )
-
-                        st.rerun()
+                st.rerun()
 
 
 # =========================================================
-# DASHBOARD
+# ADMIN CONTROL CENTER
 # =========================================================
 
-def dashboard():
+def admin_center():
 
-    page_header(
-        "Executive Dashboard",
-        "MASAR business development command center"
+    header(
+        "Admin Control Center",
+        "System administration and employee account management"
     )
 
-    companies = query(
-        "SELECT * FROM companies"
+    tab1,tab2,tab3 = st.tabs(
+        [
+            "Employee Accounts",
+            "Branding",
+            "System"
+        ]
     )
 
-    opportunities = query(
-        "SELECT * FROM opportunities"
-    )
+    with tab1:
 
-    followups = query(
-        "SELECT * FROM followups"
-    )
-
-    employees = query(
-        "SELECT * FROM employees"
-    )
-
-    pipeline = (
-        opportunities["value"].sum()
-        if not opportunities.empty
-        else 0
-    )
-
-    weighted = (
-        (
-            opportunities["value"]
-            *
-            opportunities["probability"]
-            / 100
-        ).sum()
-        if not opportunities.empty
-        else 0
-    )
-
-    today = date.today().isoformat()
-
-    overdue = 0
-
-    if not followups.empty:
-
-        overdue = len(
-            followups[
-                (followups["status"] == "Open")
-                &
-                (followups["due_date"] < today)
-            ]
+        employees = query(
+            """
+            SELECT
+                id,
+                employee_code,
+                full_name,
+                position,
+                email,
+                role,
+                status,
+                created_at
+            FROM employees
+            ORDER BY id DESC
+            """
         )
-
-    c1,c2,c3,c4,c5 = st.columns(5)
-
-    with c1:
-        kpi(
-            "Companies",
-            len(companies),
-            "CRM accounts"
-        )
-
-    with c2:
-        kpi(
-            "Employees",
-            len(employees),
-            "Active internal users"
-        )
-
-    with c3:
-        kpi(
-            "Pipeline",
-            f"{pipeline:,.0f}",
-            "Total opportunity value"
-        )
-
-    with c4:
-        kpi(
-            "Weighted Pipeline",
-            f"{weighted:,.0f}",
-            "Probability adjusted"
-        )
-
-    with c5:
-        kpi(
-            "Overdue",
-            overdue,
-            "Action required"
-        )
-
-    st.write("")
-
-    if not opportunities.empty:
-
-        left,right = st.columns(2)
-
-        with left:
-
-            data = (
-                opportunities
-                .groupby("stage")["value"]
-                .sum()
-                .reset_index()
-            )
-
-            fig = px.bar(
-                data,
-                x="stage",
-                y="value",
-                text_auto=True
-            )
-
-            fig.update_layout(
-                template="plotly_dark"
-            )
-
-            st.plotly_chart(
-                fig,
-                use_container_width=True
-            )
-
-        with right:
-
-            data = (
-                opportunities
-                .groupby("service")["value"]
-                .sum()
-                .reset_index()
-            )
-
-            fig = px.pie(
-                data,
-                names="service",
-                values="value"
-            )
-
-            fig.update_layout(
-                template="plotly_dark"
-            )
-
-            st.plotly_chart(
-                fig,
-                use_container_width=True
-            )
-
-    st.markdown("### Recent Follow-ups")
-
-    if not followups.empty:
 
         st.dataframe(
-            followups
-            .sort_values("due_date")
-            .head(10),
+            employees,
             use_container_width=True,
             hide_index=True
         )
 
-    else:
+        st.markdown(
+            "### Create Employee"
+        )
+
+        with st.form(
+            "employee_creation"
+        ):
+
+            c1,c2 = st.columns(2)
+
+            with c1:
+
+                code = st.text_input(
+                    "Employee Code"
+                )
+
+                name = st.text_input(
+                    "Full Name"
+                )
+
+                position = st.text_input(
+                    "Position"
+                )
+
+                email = st.text_input(
+                    "Email"
+                )
+
+            with c2:
+
+                phone = st.text_input(
+                    "Phone"
+                )
+
+                role = st.selectbox(
+                    "Role",
+                    [
+                        "Employee",
+                        "Manager",
+                        "CEO",
+                        "Founder & Managing Director",
+                        "Admin"
+                    ]
+                )
+
+                pin = st.text_input(
+                    "PIN",
+                    type="password"
+                )
+
+                status = st.selectbox(
+                    "Status",
+                    [
+                        "Active",
+                        "Inactive"
+                    ]
+                )
+
+            submit = st.form_submit_button(
+                "CREATE ACCOUNT"
+            )
+
+            if submit:
+
+                try:
+
+                    execute(
+                        """
+                        INSERT INTO employees
+                        (
+                            employee_code,
+                            full_name,
+                            position,
+                            email,
+                            phone,
+                            pin_hash,
+                            role,
+                            status,
+                            created_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            code.upper().strip(),
+                            name,
+                            position,
+                            email,
+                            phone,
+                            hash_pin(pin),
+                            role,
+                            status,
+                            datetime.now().isoformat()
+                        )
+                    )
+
+                    st.success(
+                        "Employee account created."
+                    )
+
+                    st.rerun()
+
+                except sqlite3.IntegrityError:
+
+                    st.error(
+                        "Employee Code already exists."
+                    )
+
+    with tab2:
+
+        st.markdown(
+            "### MASAR Brand Settings"
+        )
+
+        uploaded_logo = st.file_uploader(
+            "Change MASAR Logo",
+            type=[
+                "png",
+                "jpg",
+                "jpeg",
+                "webp"
+            ]
+        )
+
+        if st.button(
+            "SAVE NEW LOGO"
+        ):
+
+            if uploaded_logo:
+
+                encoded = base64.b64encode(
+                    uploaded_logo.getvalue()
+                ).decode()
+
+                execute(
+                    """
+                    INSERT OR REPLACE
+                    INTO settings
+                    (key,value)
+                    VALUES (?,?)
+                    """,
+                    (
+                        "logo",
+                        encoded
+                    )
+                )
+
+                st.success(
+                    "Logo updated successfully."
+                )
+
+                st.rerun()
+
+            else:
+
+                st.warning(
+                    "Select a logo first."
+                )
+
+        current_logo = get_logo()
+
+        if current_logo:
+
+            st.markdown(
+                "### Current Logo"
+            )
+
+            st.image(
+                current_logo,
+                width=220
+            )
+
+    with tab3:
+
+        st.markdown(
+            "### Security"
+
+        )
 
         st.info(
-            "No follow-ups yet."
+            "Employee authentication is enabled."
+        )
+
+        st.warning(
+            "Default Admin PIN is 1234. "
+            "Change it before production use."
         )
 
 
@@ -1284,13 +2029,17 @@ def dashboard():
 
 def crm():
 
-    page_header(
+    header(
         "CRM & Companies",
         "Strategic account management"
     )
 
     companies = query(
-        "SELECT * FROM companies ORDER BY id DESC"
+        """
+        SELECT *
+        FROM companies
+        ORDER BY id DESC
+        """
     )
 
     tab1,tab2 = st.tabs(
@@ -1303,14 +2052,13 @@ def crm():
     with tab1:
 
         search = st.text_input(
-            "Search"
+            "Search Companies"
         )
 
         if search:
 
             companies = companies[
-                companies["name"]
-                .str.contains(
+                companies["name"].str.contains(
                     search,
                     case=False,
                     na=False
@@ -1325,7 +2073,9 @@ def crm():
 
     with tab2:
 
-        with st.form("company"):
+        with st.form(
+            "company_form"
+        ):
 
             name = st.text_input(
                 "Company Name"
@@ -1335,42 +2085,36 @@ def crm():
                 "Website"
             )
 
-            c1,c2 = st.columns(2)
+            industry = st.text_input(
+                "Industry"
+            )
 
-            with c1:
+            country = st.text_input(
+                "Country"
+            )
 
-                industry = st.text_input(
-                    "Industry"
-                )
+            size = st.selectbox(
+                "Company Size",
+                [
+                    "Startup",
+                    "Small",
+                    "Medium",
+                    "Large",
+                    "Enterprise",
+                    "Government"
+                ]
+            )
 
-                country = st.text_input(
-                    "Country"
-                )
-
-            with c2:
-
-                size = st.selectbox(
-                    "Size",
-                    [
-                        "Startup",
-                        "Small",
-                        "Medium",
-                        "Large",
-                        "Enterprise",
-                        "Government"
-                    ]
-                )
-
-                status = st.selectbox(
-                    "Status",
-                    [
-                        "Prospect",
-                        "Target",
-                        "Active Client",
-                        "Partner",
-                        "Dormant"
-                    ]
-                )
+            status = st.selectbox(
+                "Status",
+                [
+                    "Prospect",
+                    "Target",
+                    "Active Client",
+                    "Partner",
+                    "Dormant"
+                ]
+            )
 
             description = st.text_area(
                 "Description"
@@ -1419,177 +2163,18 @@ def crm():
 
 
 # =========================================================
-# INTELLIGENCE CENTER
-# =========================================================
-
-def intelligence():
-
-    page_header(
-        "Intelligence Center",
-        "Research companies and identify MASAR opportunities"
-    )
-
-    url = st.text_input(
-        "Company Website",
-        placeholder="https://www.example.com"
-    )
-
-    if st.button(
-        "RUN INTELLIGENCE SCAN",
-        type="primary"
-    ):
-
-        if not url:
-
-            st.warning(
-                "Enter a website."
-            )
-
-        else:
-
-            try:
-
-                if not url.startswith("http"):
-                    url = "https://" + url
-
-                headers = {
-                    "User-Agent":
-                    "Mozilla/5.0 MASAR Intelligence OS"
-                }
-
-                response = requests.get(
-                    url,
-                    headers=headers,
-                    timeout=15
-                )
-
-                response.raise_for_status()
-
-                soup = BeautifulSoup(
-                    response.text,
-                    "html.parser"
-                )
-
-                for element in soup(
-                    ["script","style","noscript"]
-                ):
-                    element.decompose()
-
-                title = (
-                    soup.title.get_text(
-                        strip=True
-                    )
-                    if soup.title
-                    else ""
-                )
-
-                meta = soup.find(
-                    "meta",
-                    attrs={"name":"description"}
-                )
-
-                description = (
-                    meta.get("content","")
-                    if meta
-                    else ""
-                )
-
-                text = soup.get_text(
-                    " ",
-                    strip=True
-                )
-
-                st.session_state[
-                    "intel"
-                ] = {
-                    "title": title,
-                    "description": description,
-                    "text": text[:30000]
-                }
-
-                st.success(
-                    "Intelligence scan completed."
-                )
-
-            except Exception:
-
-                st.error(
-                    "Unable to access this website."
-                )
-
-    if "intel" in st.session_state:
-
-        intel = st.session_state["intel"]
-
-        st.markdown(
-            f"## {intel['title']}"
-        )
-
-        if intel["description"]:
-
-            st.info(
-                intel["description"]
-            )
-
-        tab1,tab2,tab3 = st.tabs(
-            [
-                "Snapshot",
-                "Extracted Information",
-                "MASAR Analysis"
-            ]
-        )
-
-        with tab1:
-
-            st.write(
-                "Website intelligence successfully collected."
-            )
-
-        with tab2:
-
-            st.text_area(
-                "Website Content",
-                intel["text"],
-                height=500
-            )
-
-        with tab3:
-
-            st.markdown("""
-### MASAR Opportunity Areas
-
-#### Government Affairs
-- Government relations
-- Regulatory engagement
-- Stakeholder management
-- Public-sector access
-
-#### Public Relations
-- Corporate reputation
-- Media relations
-- Strategic communications
-- Crisis communications
-
-#### Business Development
-- Strategic partnerships
-- Market entry
-- Commercial expansion
-- Institutional relationships
-            """)
-
-
-# =========================================================
 # OPPORTUNITIES
 # =========================================================
 
 def opportunities():
 
-    page_header(
+    header(
         "Opportunities",
-        "Manage the MASAR commercial pipeline"
+        "MASAR commercial pipeline"
     )
 
-    df = query("""
+    df = query(
+        """
         SELECT
             o.id,
             c.name AS company,
@@ -1604,7 +2189,8 @@ def opportunities():
         LEFT JOIN companies c
         ON o.company_id=c.id
         ORDER BY o.id DESC
-    """)
+        """
+    )
 
     st.dataframe(
         df,
@@ -1612,15 +2198,13 @@ def opportunities():
         hide_index=True
     )
 
-    st.markdown("### Add Opportunity")
-
     companies = query(
         "SELECT id,name FROM companies ORDER BY name"
     )
 
     if companies.empty:
 
-        st.warning(
+        st.info(
             "Add companies first."
         )
 
@@ -1633,7 +2217,9 @@ def opportunities():
         )
     )
 
-    with st.form("opportunity"):
+    with st.form(
+        "opportunity_form"
+    ):
 
         company = st.selectbox(
             "Company",
@@ -1691,7 +2277,7 @@ def opportunities():
         )
 
         submit = st.form_submit_button(
-            "CREATE"
+            "CREATE OPPORTUNITY"
         )
 
         if submit:
@@ -1733,14 +2319,381 @@ def opportunities():
 
 
 # =========================================================
+# INTELLIGENCE CENTER
+# =========================================================
+
+def intelligence():
+
+    header(
+        "Intelligence Center",
+        "Research companies and identify MASAR opportunities"
+    )
+
+    url = st.text_input(
+        "Company Website",
+        placeholder="https://example.com"
+    )
+
+    if st.button(
+        "RUN INTELLIGENCE SCAN",
+        type="primary"
+    ):
+
+        if not url:
+
+            st.warning(
+                "Enter a website."
+            )
+
+        else:
+
+            try:
+
+                if not url.startswith(
+                    "http"
+                ):
+                    url = "https://" + url
+
+                response = requests.get(
+                    url,
+                    headers={
+                        "User-Agent":
+                        "Mozilla/5.0 MASAR OS"
+                    },
+                    timeout=15
+                )
+
+                response.raise_for_status()
+
+                soup = BeautifulSoup(
+                    response.text,
+                    "html.parser"
+                )
+
+                for element in soup(
+                    [
+                        "script",
+                        "style",
+                        "noscript"
+                    ]
+                ):
+                    element.decompose()
+
+                title = (
+                    soup.title.get_text(
+                        strip=True
+                    )
+                    if soup.title
+                    else ""
+                )
+
+                meta = soup.find(
+                    "meta",
+                    attrs={
+                        "name":
+                        "description"
+                    }
+                )
+
+                description = (
+                    meta.get(
+                        "content",
+                        ""
+                    )
+                    if meta
+                    else ""
+                )
+
+                text = soup.get_text(
+                    " ",
+                    strip=True
+                )
+
+                st.session_state[
+                    "intelligence"
+                ] = {
+                    "title": title,
+                    "description": description,
+                    "text": text[:30000]
+                }
+
+                st.success(
+                    "Website scan completed."
+                )
+
+            except Exception:
+
+                st.error(
+                    "Unable to access this website."
+                )
+
+    if "intelligence" in st.session_state:
+
+        intel = st.session_state[
+            "intelligence"
+        ]
+
+        st.markdown(
+            f"## {intel['title']}"
+        )
+
+        if intel["description"]:
+
+            st.info(
+                intel["description"]
+            )
+
+        t1,t2,t3 = st.tabs(
+            [
+                "Snapshot",
+                "Website Content",
+                "MASAR Analysis"
+            ]
+        )
+
+        with t1:
+
+            st.write(
+                "Public website information collected."
+            )
+
+        with t2:
+
+            st.text_area(
+                "Extracted Content",
+                intel["text"],
+                height=500
+            )
+
+        with t3:
+
+            st.markdown(
+                """
+### Government Affairs
+
+• Government relations  
+• Regulatory engagement  
+• Stakeholder management  
+• Public-sector access  
+
+### Public Relations
+
+• Reputation management  
+• Strategic communications  
+• Media relations  
+• Crisis communications  
+
+### Business Development
+
+• Strategic partnerships  
+• Market entry  
+• Commercial expansion  
+• Institutional relationships  
+                """
+            )
+
+
+# =========================================================
+# EXECUTIVE DASHBOARD
+# =========================================================
+
+def dashboard():
+
+    header(
+        "Executive Dashboard",
+        "MASAR management command center"
+    )
+
+    companies = query(
+        "SELECT * FROM companies"
+    )
+
+    opportunities_df = query(
+        "SELECT * FROM opportunities"
+    )
+
+    tasks = query(
+        "SELECT * FROM tasks"
+    )
+
+    employees = query(
+        """
+        SELECT *
+        FROM employees
+        WHERE status='Active'
+        """
+    )
+
+    pipeline = (
+        opportunities_df["value"].sum()
+        if not opportunities_df.empty
+        else 0
+    )
+
+    weighted = (
+        (
+            opportunities_df["value"]
+            *
+            opportunities_df["probability"]
+            / 100
+        ).sum()
+        if not opportunities_df.empty
+        else 0
+    )
+
+    overdue = 0
+
+    if not tasks.empty:
+
+        today = date.today().isoformat()
+
+        overdue = len(
+            tasks[
+                (tasks["status"] != "Completed")
+                &
+                (tasks["due_date"] < today)
+            ]
+        )
+
+    c1,c2,c3,c4,c5 = st.columns(5)
+
+    with c1:
+        kpi(
+            "Companies",
+            len(companies),
+            "CRM"
+        )
+
+    with c2:
+        kpi(
+            "Employees",
+            len(employees),
+            "Active users"
+        )
+
+    with c3:
+        kpi(
+            "Pipeline",
+            f"{pipeline:,.0f}",
+            "Commercial value"
+        )
+
+    with c4:
+        kpi(
+            "Weighted",
+            f"{weighted:,.0f}",
+            "Probability adjusted"
+        )
+
+    with c5:
+        kpi(
+            "Overdue Tasks",
+            overdue,
+            "Management attention"
+        )
+
+    st.write("")
+
+    if not opportunities_df.empty:
+
+        left,right = st.columns(2)
+
+        with left:
+
+            stage = (
+                opportunities_df
+                .groupby("stage")["value"]
+                .sum()
+                .reset_index()
+            )
+
+            fig = px.bar(
+                stage,
+                x="stage",
+                y="value",
+                text_auto=True
+            )
+
+            fig.update_layout(
+                template="plotly_dark"
+            )
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True
+            )
+
+        with right:
+
+            service = (
+                opportunities_df
+                .groupby("service")["value"]
+                .sum()
+                .reset_index()
+            )
+
+            fig = px.pie(
+                service,
+                names="service",
+                values="value"
+            )
+
+            fig.update_layout(
+                template="plotly_dark"
+            )
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True
+            )
+
+    st.markdown(
+        "### Organization Performance"
+    )
+
+    if not employees.empty:
+
+        records = []
+
+        for _, employee in employees.iterrows():
+
+            score = calculate_performance(
+                int(employee["id"])
+            )
+
+            records.append(
+                {
+                    "Employee":
+                    employee["full_name"],
+
+                    "Position":
+                    employee["position"],
+
+                    "Performance":
+                    score["score"]
+                }
+            )
+
+        perf = pd.DataFrame(
+            records
+        )
+
+        st.dataframe(
+            perf,
+            use_container_width=True,
+            hide_index=True
+        )
+
+
+# =========================================================
 # GOVERNANCE
 # =========================================================
 
 def governance():
 
-    page_header(
+    header(
         "Governance",
-        "Policies, procedures and organizational documentation"
+        "Policies, procedures and corporate documentation"
     )
 
     df = query(
@@ -1762,74 +2715,253 @@ def governance():
         hide_index=True
     )
 
-    if st.session_state["user_role"] == "Admin":
+    if st.session_state[
+        "user_role"
+    ] == "Admin":
 
-        st.markdown("### Add Document")
+        st.markdown(
+            "### Add Governance Document"
+        )
 
-        with st.form("governance"):
+        category = st.selectbox(
+            "Category",
+            [
+                "Policy",
+                "Procedure",
+                "Governance",
+                "Other"
+            ]
+        )
 
-            category = st.selectbox(
-                "Type",
-                [
-                    "Policy",
-                    "Procedure",
-                    "Governance",
-                    "Other"
-                ]
-            )
+        title = st.text_input(
+            "Title"
+        )
 
-            title = st.text_input(
-                "Title"
-            )
+        review = st.date_input(
+            "Review Date"
+        )
 
-            review = st.date_input(
-                "Review Date"
-            )
+        content = st.text_area(
+            "Content",
+            height=300
+        )
 
-            content = st.text_area(
-                "Content",
-                height=300
-            )
+        if st.button(
+            "SAVE DOCUMENT"
+        ):
 
-            submit = st.form_submit_button(
-                "SAVE"
-            )
-
-            if submit:
-
-                execute(
-                    """
-                    INSERT INTO governance
-                    (
-                        category,
-                        title,
-                        content,
-                        review_date,
-                        status
-                    )
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (
-                        category,
-                        title,
-                        content,
-                        review.isoformat(),
-                        "Active"
-                    )
+            execute(
+                """
+                INSERT INTO governance
+                (
+                    category,
+                    title,
+                    content,
+                    review_date,
+                    status
                 )
-
-                st.success(
-                    "Saved."
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    category,
+                    title,
+                    content,
+                    review.isoformat(),
+                    "Active"
                 )
+            )
 
-                st.rerun()
+            st.success(
+                "Document saved."
+            )
+
+            st.rerun()
 
 
 # =========================================================
-# LOGOUT
+# AUTH
 # =========================================================
 
-def logout():
+if "authenticated" not in st.session_state:
+
+    st.session_state[
+        "authenticated"
+    ] = False
+
+
+if not st.session_state[
+    "authenticated"
+]:
+
+    login()
+
+    st.stop()
+
+
+# =========================================================
+# NOTIFICATIONS
+# =========================================================
+
+user_id = st.session_state[
+    "user_id"
+]
+
+unread = query(
+    """
+    SELECT COUNT(*) AS count
+    FROM messages
+    WHERE receiver_id=?
+    AND is_read=0
+    """,
+    (user_id,)
+)
+
+unread_count = int(
+    unread.iloc[0]["count"]
+)
+
+overdue_tasks = query(
+    """
+    SELECT COUNT(*) AS count
+    FROM tasks
+    WHERE assigned_to=?
+    AND status!='Completed'
+    AND due_date < ?
+    """,
+    (
+        user_id,
+        date.today().isoformat()
+    )
+)
+
+overdue_count = int(
+    overdue_tasks.iloc[0]["count"]
+)
+
+if unread_count > 0:
+
+    st.sidebar.warning(
+        f"💬 {unread_count} unread message(s)"
+    )
+
+if overdue_count > 0:
+
+    st.sidebar.error(
+        f"⚠️ {overdue_count} overdue task(s)"
+    )
+
+# =========================================================
+# SIDEBAR
+# =========================================================
+
+display_logo()
+
+st.sidebar.markdown("---")
+
+st.sidebar.markdown(
+    f"""
+    <div class="profile">
+
+        <b>
+            {st.session_state['user_name']}
+        </b>
+
+        <br>
+
+        <span style="color:#38BDF8;">
+            {st.session_state['user_role']}
+        </span>
+
+        <br>
+
+        <small>
+            {st.session_state['employee_code']}
+        </small>
+
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+st.sidebar.write("")
+
+# =========================================================
+# SOUND CONTROL
+# =========================================================
+
+sound = st.sidebar.toggle(
+    "🔊 Notification Sound",
+    value=st.session_state.get(
+        "sound_enabled",
+        False
+    )
+)
+
+st.session_state[
+    "sound_enabled"
+] = sound
+
+if sound and (
+    unread_count > 0
+    or overdue_count > 0
+):
+
+    notification_sound()
+
+
+# =========================================================
+# NAVIGATION
+# =========================================================
+
+pages = [
+    "🏠 My Dashboard",
+    "✅ My Tasks",
+    "💬 Internal Chat",
+    "📁 Job Descriptions",
+    "🏢 CRM & Companies",
+    "💼 Opportunities",
+    "🧠 Intelligence Center",
+    "⚖️ Governance"
+]
+
+role = st.session_state[
+    "user_role"
+]
+
+if role in [
+    "Admin",
+    "CEO",
+    "Founder & Managing Director"
+]:
+
+    pages.insert(
+        1,
+        "📊 Performance Center"
+    )
+
+    pages.insert(
+        2,
+        "📋 Task Management"
+    )
+
+if role == "Admin":
+
+    pages.insert(
+        3,
+        "👑 Admin Control Center"
+    )
+
+page = st.sidebar.radio(
+    "Navigation",
+    pages
+)
+
+st.sidebar.markdown("---")
+
+if st.sidebar.button(
+    "🚪 Logout",
+    use_container_width=True
+):
 
     st.session_state.clear()
 
@@ -1837,126 +2969,69 @@ def logout():
 
 
 # =========================================================
-# AUTHENTICATION
+# ROUTER
 # =========================================================
 
-if "authenticated" not in st.session_state:
+if page == "🏠 My Dashboard":
 
-    st.session_state["authenticated"] = False
+    if role in [
+        "Admin",
+        "CEO",
+        "Founder & Managing Director"
+    ]:
 
+        dashboard()
 
-if not st.session_state["authenticated"]:
+    else:
 
-    login_screen()
-
-    st.stop()
-
-
-# =========================================================
-# SIDEBAR
-# =========================================================
-
-with st.sidebar:
-
-    st.markdown(
-        """
-        <div style="padding:10px 0 25px;">
-            <div class="masar-logo">
-                ◈ MASAR
-            </div>
-            <div class="masar-tag">
-                INTELLIGENCE OS
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        f"""
-        <div class="profile-card">
-            <b>
-                {st.session_state['user_name']}
-            </b>
-            <br>
-            <span style="color:#38BDF8;">
-                {st.session_state['user_role']}
-            </span>
-            <br>
-            <small>
-                {st.session_state['employee_code']}
-            </small>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.write("")
-
-    pages = [
-        "🏠 Dashboard",
-        "🏢 CRM & Companies",
-        "💼 Opportunities",
-        "💬 Internal Chat",
-        "📁 Job Descriptions",
-        "🧠 Intelligence Center",
-        "⚖️ Governance"
-    ]
-
-    if st.session_state["user_role"] == "Admin":
-
-        pages.insert(
-            5,
-            "👑 Employee Management"
-        )
-
-    page = st.radio(
-        "Navigation",
-        pages
-    )
-
-    st.markdown("---")
-
-    if st.button(
-        "🚪 Logout",
-        use_container_width=True
-    ):
-
-        logout()
+        employee_dashboard()
 
 
-# =========================================================
-# ROUTING
-# =========================================================
+elif page == "📊 Performance Center":
 
-if page == "🏠 Dashboard":
+    performance_center()
 
-    dashboard()
 
-elif page == "🏢 CRM & Companies":
+elif page == "📋 Task Management":
 
-    crm()
+    task_organizer()
 
-elif page == "💼 Opportunities":
 
-    opportunities()
+elif page == "👑 Admin Control Center":
+
+    admin_center()
+
+
+elif page == "✅ My Tasks":
+
+    task_organizer()
+
 
 elif page == "💬 Internal Chat":
 
     internal_chat()
 
+
 elif page == "📁 Job Descriptions":
 
-    job_description_library()
+    job_descriptions()
+
+
+elif page == "🏢 CRM & Companies":
+
+    crm()
+
+
+elif page == "💼 Opportunities":
+
+    opportunities()
+
 
 elif page == "🧠 Intelligence Center":
 
     intelligence()
 
+
 elif page == "⚖️ Governance":
 
     governance()
-
-elif page == "👑 Employee Management":
-
-    employee_management()
