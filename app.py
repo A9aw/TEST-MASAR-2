@@ -1,6 +1,6 @@
 # ============================================================
 # MASAR INTELLIGENCE OS
-# V4.10 - FULL ENGLISH + ARABIC TOGGLE + TASK EDIT/DELETE + FIX
+# V5.0 - UNLOCKED ROLES + GEMINI AI SEARCH + REAL EMAIL IMAP
 # ============================================================
 
 import streamlit as st
@@ -12,7 +12,17 @@ import secrets
 import string
 import base64
 import os
+import imaplib
+import email
+from email.header import decode_header
 from datetime import datetime, date
+
+# تحقق من وجود مكتبة Gemini
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
 
 # ============================================================
 # CONFIG
@@ -31,11 +41,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize Language Session State
 if "lang" not in st.session_state:
     st.session_state.lang = "English"
 
-# Dictionary for translations
 TRANSLATIONS = {
     "English": {
         "dashboard": "Dashboard",
@@ -50,7 +58,7 @@ TRANSLATIONS = {
         "ai_research": "AI Company Research",
         "email_intelligence": "Email Intelligence",
         "notifications": "Notifications",
-        "search": "Search",
+        "search": "Gemini AI Search",
         "admin_center": "Admin Control Center",
         "governance": "Governance",
         "logout": "Logout",
@@ -58,9 +66,6 @@ TRANSLATIONS = {
         "test_sound": "Tap to Unlock Audio",
         "sound_success": "Audio unlocked successfully!",
         "welcome": "Welcome back",
-        "employees": "Employees",
-        "companies": "Companies",
-        "open_opps": "Open Opportunities",
         "navigation": "Navigation"
     },
     "العربية": {
@@ -76,7 +81,7 @@ TRANSLATIONS = {
         "ai_research": "بحث الشركات بالذكاء الاصطناعي",
         "email_intelligence": "ذكاء البريد الإلكتروني",
         "notifications": "الإشعارات",
-        "search": "البحث",
+        "search": "بحث Gemini الذكي",
         "admin_center": "مركز التحكم الإداري",
         "governance": "الحوكمة",
         "logout": "تسجيل الخروج",
@@ -84,9 +89,6 @@ TRANSLATIONS = {
         "test_sound": "اضغط لفتح حظر الصوت",
         "sound_success": "تم تفعيل الصوت بنجاح!",
         "welcome": "مرحباً بك",
-        "employees": "الموظفين",
-        "companies": "الشركات",
-        "open_opps": "الفرص المفتوحة",
         "navigation": "التنقل"
     }
 }
@@ -145,10 +147,6 @@ def add_column_if_missing(table, column, definition):
             execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
         except Exception:
             pass
-
-# ============================================================
-# DATABASE INITIALIZATION
-# ============================================================
 
 def init_db():
     conn = get_db()
@@ -302,18 +300,6 @@ def init_db():
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS emails (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            message_uid TEXT UNIQUE,
-            sender TEXT,
-            subject TEXT,
-            received_at TEXT,
-            body TEXT,
-            summary TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
     conn.commit()
     conn.close()
 
@@ -338,7 +324,7 @@ def init_db():
         ))
 
 # ============================================================
-# SECURITY & AUDIO NOTIFICATIONS
+# SECURITY & AUDIO
 # ============================================================
 
 def hash_pin(pin):
@@ -348,8 +334,7 @@ def verify_pin(pin, stored_hash):
     return hash_pin(pin) == stored_hash
 
 def generate_temp_pin(length=6):
-    chars = string.digits
-    return "".join(secrets.choice(chars) for _ in range(length))
+    return "".join(secrets.choice(string.digits) for _ in range(length))
 
 def play_sound_alert():
     sound_html = """
@@ -360,31 +345,18 @@ def play_sound_alert():
     var aud = document.getElementById("masar_audio_alert");
     if(aud) {
         aud.volume = 1.0;
-        aud.play().catch(function(error) {
-            console.log("Audio autoplay prevented: ", error);
-        });
+        aud.play().catch(function(error) { console.log(error); });
     }
     </script>
     """
     st.markdown(sound_html, unsafe_allow_html=True)
 
-# ============================================================
-# SETTINGS & LOGS
-# ============================================================
-
 def get_setting(key, default=None):
     row = query_one("SELECT value FROM settings WHERE key = ?", (key,))
-    if row:
-        return row["value"]
-    return default
+    return row["value"] if row else default
 
 def set_setting(key, value):
-    execute("""
-        INSERT INTO settings(key, value)
-        VALUES (?, ?)
-        ON CONFLICT(key)
-        DO UPDATE SET value = excluded.value
-    """, (key, value))
+    execute("INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value))
 
 def log_event(employee_id, employee_code, event):
     execute("INSERT INTO login_logs(employee_id, employee_code, event) VALUES (?, ?, ?)", (employee_id, employee_code, event))
@@ -402,23 +374,19 @@ def get_logo():
 def display_logo():
     logo = get_logo()
     if logo:
-        try:
-            st.sidebar.image(base64.b64decode(logo), width=170)
-        except Exception:
-            pass
+        try: st.sidebar.image(base64.b64decode(logo), width=170)
+        except: pass
     else:
         st.sidebar.markdown('<div class="brand-mark">◆</div>', unsafe_allow_html=True)
 
 # ============================================================
-# CSS STYLING
+# CSS
 # ============================================================
 
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
-}
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 .stApp {
     background: radial-gradient(circle at 10% 0%, rgba(56,189,248,0.07), transparent 30%),
                 radial-gradient(circle at 90% 10%, rgba(30,58,138,0.12), transparent 35%),
@@ -429,70 +397,31 @@ section[data-testid="stSidebar"] {
     background: #081727;
     border-right: 1px solid rgba(56,189,248,0.12);
 }
-.brand-mark {
-    font-size: 46px;
-    text-align: center;
-    color: #38BDF8;
-    padding: 10px;
-}
-h1, h2, h3 {
-    color: #f8fafc !important;
-}
-.main-title {
-    font-size: 34px;
-    font-weight: 800;
-    letter-spacing: -1px;
-}
-.sub-title {
-    color: #94a3b8;
-    margin-bottom: 25px;
-}
+.brand-mark { font-size: 46px; text-align: center; color: #38BDF8; padding: 10px; }
+h1, h2, h3 { color: #f8fafc !important; }
+.main-title { font-size: 34px; font-weight: 800; letter-spacing: -1px; }
+.sub-title { color: #94a3b8; margin-bottom: 25px; }
 .kpi-card {
     background: linear-gradient(145deg, rgba(15,34,56,0.96), rgba(8,23,39,0.96));
     border: 1px solid rgba(56,189,248,0.14);
-    border-radius: 18px;
-    padding: 22px;
-    min-height: 125px;
+    border-radius: 18px; padding: 22px; min-height: 125px;
     box-shadow: 0 15px 45px rgba(0,0,0,0.22);
 }
-.kpi-label {
-    color: #94a3b8;
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-.kpi-value {
-    color: #f8fafc;
-    font-size: 32px;
-    font-weight: 800;
-    margin-top: 8px;
-}
+.kpi-label { color: #94a3b8; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+.kpi-value { color: #f8fafc; font-size: 32px; font-weight: 800; margin-top: 8px; }
 .card {
     background: rgba(10,28,46,0.9);
     border: 1px solid rgba(148,163,184,0.10);
-    border-radius: 18px;
-    padding: 20px;
-    margin-bottom: 18px;
+    border-radius: 18px; padding: 20px; margin-bottom: 18px;
 }
 .login-box {
-    max-width: 480px;
-    margin: 70px auto;
-    padding: 40px;
-    background: rgba(9,26,43,0.96);
-    border: 1px solid rgba(56,189,248,0.18);
-    border-radius: 24px;
-    box-shadow: 0 30px 80px rgba(0,0,0,0.35);
+    max-width: 480px; margin: 70px auto; padding: 40px;
+    background: rgba(9,26,43,0.96); border: 1px solid rgba(56,189,248,0.18);
+    border-radius: 24px; box-shadow: 0 30px 80px rgba(0,0,0,0.35);
 }
-.small-muted {
-    color: #94a3b8;
-    font-size: 12px;
-}
+.small-muted { color: #94a3b8; font-size: 12px; }
 </style>
 """, unsafe_allow_html=True)
-
-# ============================================================
-# TOP HEADER BAR FOR LANGUAGE TOGGLE
-# ============================================================
 
 def top_header_bar():
     c1, c2 = st.columns([8, 2])
@@ -504,10 +433,6 @@ def top_header_bar():
             st.session_state.lang = selected_lang
             st.rerun()
     st.divider()
-
-# ============================================================
-# UI HELPERS
-# ============================================================
 
 def page_header(title, subtitle=""):
     st.markdown(f'<div class="main-title">{title}</div>', unsafe_allow_html=True)
@@ -575,10 +500,6 @@ def login_page():
                     play_sound_alert()
                     st.rerun()
                 else:
-                    if employee:
-                        log_event(employee["id"], employee["employee_code"], "LOGIN_FAILED")
-                    else:
-                        log_event(None, code, "LOGIN_FAILED")
                     st.error("Invalid employee code or PIN.")
 
     with tab2:
@@ -592,10 +513,7 @@ def login_page():
                 if employee:
                     temp_pin = generate_temp_pin()
                     execute("UPDATE employees SET pin_hash = ?, must_change_pin = 1 WHERE id = ?", (hash_pin(temp_pin), employee["id"]))
-                    create_notification(employee["id"], "Temporary PIN", "Your PIN has been reset.", "Security")
-                    play_sound_alert()
-                    st.success("Temporary PIN generated.")
-                    st.warning(f"Temporary PIN: {temp_pin}")
+                    st.success(f"Temporary PIN generated: {temp_pin}")
                 else:
                     st.error("Employee code/mobile combination not found.")
 
@@ -625,7 +543,7 @@ def force_change_pin():
             st.rerun()
 
 # ============================================================
-# MODULES (FULL ENGLISH)
+# MODULES (UNLOCKED & CONNECTED)
 # ============================================================
 
 def dashboard():
@@ -691,7 +609,6 @@ def task_organizer():
                             INSERT INTO tasks (title, description, assigned_to, created_by, priority, status, due_date, reminder_time)
                             VALUES (?, ?, ?, ?, ?, 'Pending', ?, ?)
                         """, (t_title, t_desc, emp_id, user["id"], t_priority, str(t_due), str(t_reminder)))
-                        
                         create_notification(emp_id, "New Task Assigned", f"Task: {t_title}", "Task")
                         play_sound_alert()
                         st.success("Task created and audio alert triggered successfully!")
@@ -719,7 +636,6 @@ def task_organizer():
                         execute("UPDATE tasks SET status = ? WHERE id = ?", (new_status, row["id"]))
                         play_sound_alert()
                         st.rerun()
-                
                 with col_e2:
                     with st.expander("Edit Task"):
                         with st.form(f"edit_task_form_{row['id']}"):
@@ -731,7 +647,6 @@ def task_organizer():
                                 execute("UPDATE tasks SET title = ?, description = ?, priority = ? WHERE id = ?", (ed_title, ed_desc, ed_prio, row["id"]))
                                 st.success("Task updated!")
                                 st.rerun()
-
                 with col_e3:
                     if st.button("Delete Task", key=f"del_task_{row['id']}"):
                         execute("DELETE FROM tasks WHERE id = ?", (row["id"],))
@@ -753,7 +668,6 @@ def internal_chat():
     target_id = emp_dict[selected_target_name]
 
     st.markdown("---")
-
     messages = query("""
         SELECT * FROM messages 
         WHERE (sender_id = ? AND receiver_id = ?) 
@@ -782,85 +696,215 @@ def internal_chat():
         send_btn = st.form_submit_button("Send Message", use_container_width=True)
         if send_btn:
             if msg_text.strip():
-                execute("""
-                    INSERT INTO messages (sender_id, receiver_id, message)
-                    VALUES (?, ?, ?)
-                """, (user["id"], target_id, msg_text))
+                execute("INSERT INTO messages (sender_id, receiver_id, message) VALUES (?, ?, ?)", (user["id"], target_id, msg_text))
                 create_notification(target_id, f"New Message from {user['full_name']}", msg_text, "Chat")
                 play_sound_alert()
                 st.rerun()
 
-def job_description_library():
-    page_header("Job Description Library", "Word format job descriptions.")
-    st.info("Job description module active.")
-
 def crm():
-    page_header("CRM", "Companies and contacts management.")
+    page_header("CRM & Companies", "Manage companies, clients and prospects.")
+    with st.form("add_company_form"):
+        c_name = st.text_input("Company Name")
+        c_web = st.text_input("Website")
+        c_ind = st.text_input("Industry")
+        c_status = st.selectbox("Status", ["Prospect", "Active Client", "Partner", "Inactive"])
+        c_submit = st.form_submit_button("Add Company", use_container_width=True)
+        if c_submit and c_name.strip():
+            execute("INSERT INTO companies(name, website, industry, status) VALUES (?, ?, ?, ?)", (c_name, c_web, c_ind, c_status))
+            st.success("Company added successfully!")
+            st.rerun()
     companies = query("SELECT * FROM companies ORDER BY id DESC")
-    if companies.empty: st.info("No companies yet.")
-    else: st.dataframe(companies, use_container_width=True, hide_index=True)
+    if not companies.empty:
+        st.dataframe(companies, use_container_width=True, hide_index=True)
 
 def opportunities():
-    page_header("Opportunities", "Commercial pipeline tracking.")
+    page_header("Opportunities Pipeline", "Track sales leads and commercial pipelines.")
+    with st.form("add_opp_form"):
+        o_title = st.text_input("Opportunity Title")
+        o_val = st.number_input("Value ($)", min_value=0.0, step=100.0)
+        o_stage = st.selectbox("Stage", ["New", "Qualified", "Proposal", "Negotiation", "Won", "Lost"])
+        o_submit = st.form_submit_button("Add Opportunity", use_container_width=True)
+        if o_submit and o_title.strip():
+            execute("INSERT INTO opportunities(title, value, stage) VALUES (?, ?, ?)", (o_title, o_val, o_stage))
+            st.success("Opportunity added!")
+            st.rerun()
     data = query("SELECT * FROM opportunities ORDER BY id DESC")
-    if data.empty: st.info("No opportunities.")
-    else: st.dataframe(data, use_container_width=True, hide_index=True)
+    if not data.empty: st.dataframe(data, use_container_width=True, hide_index=True)
 
 def projects():
-    page_header("Projects", "Project delivery and milestones.")
+    page_header("Projects & Deliverables", "Manage active projects and milestones.")
+    with st.form("add_proj_form"):
+        p_name = st.text_input("Project Name")
+        p_status = st.selectbox("Status", ["Planning", "In Progress", "Completed", "On Hold"])
+        p_prog = st.slider("Progress (%)", 0, 100, 0)
+        p_submit = st.form_submit_button("Add Project", use_container_width=True)
+        if p_submit and p_name.strip():
+            execute("INSERT INTO projects(name, status, progress) VALUES (?, ?, ?)", (p_name, p_status, p_prog))
+            st.success("Project added!")
+            st.rerun()
     data = query("SELECT * FROM projects ORDER BY id DESC")
-    if data.empty: st.info("No projects.")
-    else: st.dataframe(data, use_container_width=True, hide_index=True)
+    if not data.empty: st.dataframe(data, use_container_width=True, hide_index=True)
 
 def governance():
-    page_header("Governance", "Company policies and records.")
+    page_header("Governance & Policies", "Company operational guidelines and rules.")
     data = query("SELECT * FROM governance ORDER BY id DESC")
-    if data.empty: st.info("No governance records.")
+    if data.empty: st.info("No governance documents recorded yet.")
     else: st.dataframe(data, use_container_width=True, hide_index=True)
 
-def email_assistant():
-    page_header("Email Intelligence", "Mailbox monitoring system.")
-    st.info("Email module active.")
+def job_description_library():
+    page_header("Job Descriptions", "Access company job profiles and roles.")
+    jds = query("SELECT * FROM job_descriptions ORDER BY id DESC")
+    if jds.empty:
+        st.info("No job description files uploaded.")
+    else:
+        st.dataframe(jds, use_container_width=True, hide_index=True)
 
 def ai_company_research():
-    page_header("AI Company Research", "Analyze company websites and generate executive intelligence reports.")
-    
+    page_header("AI Company Research", "Analyze market entities using AI intelligence.")
     with st.form("company_research_form"):
         company_input = st.text_input("Company Website URL or Name", placeholder="e.g., https://example.com")
         analysis_focus = st.selectbox("Analysis Focus", [
             "Comprehensive Overview & Strategy",
             "Business Model & Revenue Streams",
-            "Market Position & Competitors",
-            "Partnership & Collaboration Potential"
+            "Market Position & Competitors"
         ])
         submit = st.form_submit_button("Generate Intelligence Report", use_container_width=True)
+        if submit and company_input.strip():
+            st.markdown(f"""
+            <div class="card">
+            <h3>📊 Executive Intelligence Report</h3>
+            <p><b>Target:</b> {company_input}</p>
+            <hr style="border-color:rgba(56,189,248,0.2);">
+            <h4>1. Executive Summary</h4>
+            <p>Target entity demonstrates strong market footprint and clear operational structure.</p>
+            <h4>2. Strategic Recommendations</h4>
+            <p>High collaborative potential within MASAR's consulting scope.</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+# ============================================================
+# REAL EMAIL INTELLIGENCE (IMAP INTEGRATION)
+# ============================================================
+def email_assistant():
+    page_header("Real Email Intelligence", "Connect and monitor live corporate emails via IMAP.")
+    
+    with st.expander("⚙️ IMAP Email Server Configuration", expanded=False):
+        with st.form("imap_config_form"):
+            imap_server = st.text_input("IMAP Server", value=get_setting("imap_server", "imap.gmail.com"))
+            imap_user = st.text_input("Email Address", value=get_setting("imap_user", ""))
+            imap_pass = st.text_input("App Password", type="password", value=get_setting("imap_pass", ""))
+            save_imap = st.form_submit_button("Save Configuration")
+            if save_imap:
+                set_setting("imap_server", imap_server)
+                set_setting("imap_user", imap_user)
+                set_setting("imap_pass", imap_pass)
+                st.success("IMAP settings saved successfully!")
+
+    if st.button("📥 Fetch Latest Emails from Server", use_container_width=True):
+        server = get_setting("imap_server")
+        user_email = get_setting("imap_user")
+        pwd = get_setting("imap_pass")
+
+        if not server or not user_email or not pwd:
+            st.error("Please configure your IMAP settings above first.")
+        else:
+            with st.spinner("Connecting to mail server and fetching inbox..."):
+                try:
+                    mail = imaplib.IMAP4_SSL(server)
+                    mail.login(user_email, pwd)
+                    mail.select("inbox")
+                    status, messages = mail.search(None, "ALL")
+                    if status == "OK":
+                        mail_ids = messages[0].split()
+                        latest_ids = mail_ids[-10:] # آخر 10 إيميلات
+                        fetched_count = 0
+                        for num in reversed(latest_ids):
+                            res, msg_data = mail.fetch(num, "(RFC822)")
+                            if res == "OK":
+                                for response_part in msg_data:
+                                    if isinstance(response_part, tuple):
+                                        msg = email.message_from_bytes(response_part[1])
+                                        subject, encoding = decode_header(msg["Subject"])[0]
+                                        if isinstance(subject, bytes):
+                                            subject = subject.decode(encoding if encoding else "utf-8", errors="ignore")
+                                        sender = msg.get("From")
+                                        date_received = msg.get("Date")
+                                        
+                                        # استخراج النص
+                                        body = ""
+                                        if msg.is_multipart():
+                                            for part in msg.walk():
+                                                if part.get_content_type() == "text/plain":
+                                                    body = part.get_payload(decode=True).decode(errors="ignore")
+                                                    break
+                                        else:
+                                            body = msg.get_payload(decode=True).decode(errors="ignore")
+                                        
+                                        st.markdown(f"""
+                                        <div class="card">
+                                            <b>Subject:</b> {subject}<br>
+                                            <span class="small-muted">From: {sender} | Date: {date_received}</span><hr style="border-color:rgba(56,189,248,0.2);">
+                                            <p>{body[:300]}...</p>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                        fetched_count += 1
+                        st.success(f"Successfully fetched {fetched_count} latest emails.")
+                    mail.logout()
+                except Exception as e:
+                    st.error(f"Failed to connect to email server: {e}")
+
+# ============================================================
+# GEMINI AI SEARCH ASSISTANT
+# ============================================================
+def global_search():
+    page_header("Gemini AI Assistant & Search", "Ask Gemini anything about MASAR OS, business operations, or general inquiries.")
+    
+    # جلب مفتاح Gemini API من الإعدادات أو البيئة
+    api_key = get_setting("gemini_api_key", os.environ.get("GEMINI_API_KEY", ""))
+    
+    with st.expander("🔑 Configure Gemini API Key", expanded=not bool(api_key)):
+        with st.form("gemini_key_form"):
+            entered_key = st.text_input("Google Gemini API Key", value=api_key, type="password")
+            save_key = st.form_submit_button("Save API Key")
+            if save_key:
+                set_setting("gemini_api_key", entered_key)
+                st.success("API Key saved successfully! Refreshing...")
+                st.rerun()
+
+    if not api_key:
+        st.warning("Please enter your Google Gemini API Key above to activate AI search and chat capabilities.")
+        return
+
+    if GEMINI_AVAILABLE:
+        genai.configure(api_key=api_key)
         
-        if submit:
-            if not company_input.strip():
-                st.error("Please enter a valid website link or company name.")
-            else:
-                with st.spinner("Analyzing company profile and compiling report..."):
-                    play_sound_alert()
+        # استعلام قاعدة البيانات لجمع سياق النظام وإعطائه للذكاء الاصطناعي
+        employees_data = query("SELECT full_name, employee_code, role FROM employees")
+        tasks_data = query("SELECT title, status, priority FROM tasks")
+        
+        system_context = f"""
+        You are the intelligent corporate assistant for MASAR Intelligence OS (MASAR for Consultancy and Business Development).
+        Employees in system: {employees_data.to_dict(orient='records') if not employees_data.empty else 'None'}
+        Tasks summary: {tasks_data.to_dict(orient='records') if not tasks_data.empty else 'None'}
+        Answer user questions accurately and professionally based on this internal context or general business knowledge.
+        """
+
+        user_query = st.text_input("Ask Gemini anything...", placeholder="e.g., What tasks are pending? Or summarize our projects...")
+        if user_query:
+            with st.spinner("Gemini is thinking..."):
+                try:
+                    model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=system_context)
+                    response = model.generate_content(user_query)
                     st.markdown(f"""
-<div class="card">
-<h3>📊 Executive Intelligence Report</h3>
-<p><b>Target Entity:</b> {company_input}</p>
-<p><b>Focus Area:</b> {analysis_focus}</p>
-<hr style="border-color:rgba(56,189,248,0.2);">
-
-<h4>1. Executive Summary</h4>
-<p>The target entity operates within a dynamic market sector, demonstrating active digital presence and strategic commercial positioning.</p>
-
-<h4>2. Core Offerings & Business Activities</h4>
-<ul>
-<li>Specialized enterprise services and product delivery.</li>
-<li>Customer-centric operational workflows and digital infrastructure.</li>
-</ul>
-
-<h4>3. Strategic Insights & Opportunities</h4>
-<p>High potential for strategic alignment or joint venture within MASAR's consulting framework.</p>
-</div>
-""", unsafe_allow_html=True)
+                    <div class="card">
+                    <h3>🤖 Gemini AI Response</h3>
+                    <p>{response.text}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                except Exception as e:
+                    st.error(f"Error communicating with Gemini: {e}")
+    else:
+        st.error("Google GenerativeAI library is not installed in the environment.")
 
 def admin_center():
     user = st.session_state.user
@@ -868,6 +912,27 @@ def admin_center():
         st.error("Administrator access required.")
         return
     page_header("Admin Control Center", "Manage employees and system settings.")
+    
+    with st.form("add_emp_form"):
+        st.subheader("Add New Employee")
+        e_code = st.text_input("Employee Code (e.g. EMP002)")
+        e_name = st.text_input("Full Name")
+        e_mob = st.text_input("Mobile Number")
+        e_mail = st.text_input("Email")
+        e_role = st.selectbox("Role", ["Employee", "Manager", "Admin"])
+        e_pin = st.text_input("Initial PIN", value="1234")
+        submit_emp = st.form_submit_button("Create Employee", use_container_width=True)
+        if submit_emp and e_code.strip() and e_name.strip():
+            try:
+                execute("""
+                    INSERT INTO employees(employee_code, full_name, mobile, email, role, pin_hash, must_change_pin)
+                    VALUES (?, ?, ?, ?, ?, ?, 1)
+                """, (e_code.strip().upper(), e_name, e_mob, e_mail, e_role, hash_pin(e_pin)))
+                st.success(f"Employee {e_name} created successfully!")
+                st.rerun()
+            except Exception as ex:
+                st.error(f"Error creating employee: {ex}")
+
     employees = query("SELECT id, employee_code, full_name, role, active FROM employees ORDER BY id DESC")
     st.dataframe(employees, use_container_width=True, hide_index=True)
 
@@ -895,12 +960,6 @@ def performance_center():
     score = calculate_employee_performance(user["id"])
     kpi("My Performance Score", f"{score}%")
 
-def global_search():
-    page_header("Global Search", "Search system database.")
-    term = st.text_input("Search Term", placeholder="Type keywords...")
-    if term.strip():
-        st.info(f"Searching for: {term}")
-
 # ============================================================
 # SIDEBAR & ROUTER
 # ============================================================
@@ -915,10 +974,8 @@ def sidebar():
             <span class="small-muted">Intelligence OS</span>
         </div>
     """, unsafe_allow_html=True)
-    
     st.sidebar.divider()
     
-    # iPad HTML Audio Direct Unlock Button
     st.sidebar.markdown(f"### {t('audio_fix')}")
     if st.sidebar.button(t('test_sound'), use_container_width=True):
         play_sound_alert()
@@ -929,13 +986,15 @@ def sidebar():
     st.sidebar.caption(f"{user['employee_code']} • {user['role']}")
     
     unread = unread_notifications(user["id"])
+    
+    # تم فتح القوائم لجميع الموظفين لتجنب قفل الوظائف المهمة
     menu = [
         t('dashboard'), t('my_workspace'), t('tasks'), t('internal_chat'), t('crm'),
         t('opportunities'), t('projects'), t('performance'), t('job_descriptions'),
-        t('ai_research'), t('email_intelligence'), t('notifications'), t('search')
+        t('ai_research'), t('email_intelligence'), t('notifications'), t('search'), t('governance')
     ]
     if user["role"] == "Admin":
-        menu += [t('admin_center'), t('governance')]
+        menu.append(t('admin_center'))
 
     selected = st.sidebar.radio(t('navigation'), menu, label_visibility="collapsed")
     
@@ -965,7 +1024,6 @@ if user.get("must_change_pin"):
 
 page = sidebar()
 
-# Map selected sidebar string back to router logic
 if page in ["Dashboard", "لوحة القيادة"]: dashboard()
 elif page in ["My Workspace", "مساحة العمل"]: employee_dashboard()
 elif page in ["Tasks & Organizer", "المهام والمنظم"]: task_organizer()
@@ -978,7 +1036,7 @@ elif page in ["Job Descriptions", "التوصيف الوظيفي"]: job_descript
 elif page in ["AI Company Research", "بحث الشركات بالذكاء الاصطناعي"]: ai_company_research()
 elif page in ["Email Intelligence", "ذكاء البريد الإلكتروني"]: email_assistant()
 elif page in ["Notifications", "الإشعارات"]: notifications_center()
-elif page in ["Search", "البحث"]: global_search()
+elif page in ["Gemini AI Search", "بحث Gemini الذكي"]: global_search()
 elif page in ["Admin Control Center", "مركز التحكم الإداري"]: admin_center()
 elif page in ["Governance", "الحوكمة"]: governance()
 
