@@ -1,6 +1,6 @@
 # ============================================================
 # MASAR INTELLIGENCE OS
-# V4.6 - STABLE SINGLE FILE EDITION (FIXED ITERATION & CHAT)
+# V4.7 - STABLE SINGLE FILE EDITION (IPAD AUDIO & ITERATION FIX)
 # ============================================================
 
 import streamlit as st
@@ -274,7 +274,7 @@ def init_db():
         ))
 
 # ============================================================
-# SECURITY & AUDIO NOTIFICATIONS
+# SECURITY & AUDIO NOTIFICATIONS (IPAD COMPATIBLE)
 # ============================================================
 
 def hash_pin(pin):
@@ -288,22 +288,14 @@ def generate_temp_pin(length=6):
     return "".join(secrets.choice(chars) for _ in range(length))
 
 def play_sound_alert():
-    """توليد تنبيه صوتي حي داخل المتصفح باستخدام JavaScript Web Audio API"""
+    """تشغيل صوت تنبيه باستخدام عنصر HTML5 Audio ليتوافق مع متصفحات الأيباد والموبايل"""
     sound_script = """
     <script>
     try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5 note
-        gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        oscillator.start();
-        oscillator.stop(audioCtx.currentTime + 0.3);
+        const audio = new Audio("data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU2LjQwLjEwMQAAAAAAAAAAAAAA//OEAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NExAAAAgQAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
+        audio.play().catch(e => console.log("Audio play blocked by browser policy"));
     } catch(e) {
-        console.log("Audio blocked");
+        console.log("Audio error", e);
     }
     </script>
     """
