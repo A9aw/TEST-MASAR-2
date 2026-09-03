@@ -1,6 +1,6 @@
 # ============================================================
 # MASAR INTELLIGENCE OS
-# V4.4 - STABLE SINGLE FILE EDITION (AUDIO ALERTS & TASKS ENGINE)
+# V4.5 - STABLE SINGLE FILE EDITION (CHAT & TASKS ENGINE)
 # ============================================================
 
 import streamlit as st
@@ -297,13 +297,13 @@ def play_sound_alert():
         const gainNode = audioCtx.createGain();
         oscillator.type = 'sine';
         oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5 note
-        gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
         oscillator.connect(gainNode);
         gainNode.connect(audioCtx.destination);
         oscillator.start();
-        oscillator.stop(audioCtx.currentTime + 0.25);
+        oscillator.stop(audioCtx.currentTime + 0.3);
     } catch(e) {
-        console.log("Audio not supported or blocked");
+        console.log("Audio blocked");
     }
     </script>
     """
@@ -586,26 +586,24 @@ def employee_dashboard():
 
 def task_organizer():
     user = st.session_state.user
-    page_header("Task Organizer & Creator", "إدارة وتعيين المهام الشخصية ومنبهات التذكير.")
+    page_header("Task Organizer & Creator", "إدارة وتعيين المهام، وتحديد المواعيد ومنبهات التذكير الصوتي والرسائل.")
 
-    # نموذج إضافة مهمة جديدة لأي موظف
-    with st.expander("➕ إضافة مهمة جديدة وتعيين منبه", expanded=True):
+    with st.expander("➕ إضافة مهمة جديدة وتعيين موعد ومنبه صوتي", expanded=True):
         with st.markdown('<div class="card">', unsafe_allow_html=True):
             with st.form("new_task_form"):
                 t_title = st.text_input("عنوان المهمة")
                 t_desc = st.text_area("تفاصيل المهمة")
                 
-                # جلب الموظفين لتعيين المهمة لهم
-                emps = query("SELECT id, full_name FROM employees WHERE active = 1")
+                emps = query("SELECT id, full_name, email FROM employees WHERE active = 1")
                 emp_options = {row["full_name"]: row["id"] for row in emps}
                 assigned_name = st.selectbox("تعيين إلى موظف", list(emp_options.keys()))
                 
                 col1, col2, col3 = st.columns(3)
                 with col1: t_priority = st.selectbox("الأولوية", ["Low", "Medium", "High", "Urgent"])
                 with col2: t_due = st.date_input("تاريخ الاستحقاق", value=date.today())
-                with col3: t_reminder = st.time_input("منبه التنبيه الصوتي (الوقت)")
+                with col3: t_reminder = st.time_input("وقت التنبيه الصوتي والإشعار")
                 
-                submit_task = st.form_submit_button("حفظ وإضافة المهمة", use_container_width=True)
+                submit_task = st.form_submit_button("حفظ وتفعيل التنبيه الصوتي وإرسال الإشعار", use_container_width=True)
                 if submit_task:
                     if not t_title.strip():
                         st.error("يرجى إدخال عنوان المهمة.")
@@ -616,9 +614,9 @@ def task_organizer():
                             VALUES (?, ?, ?, ?, ?, 'Pending', ?, ?)
                         """, (t_title, t_desc, emp_id, user["id"], t_priority, str(t_due), str(t_reminder)))
                         
-                        create_notification(emp_id, "مهمة جديدة مضافة", f"تم تكليفك بمهمة جديدة: {t_title}", "Task")
+                        create_notification(emp_id, "مهمة جديدة محددة بموعد", f"المهمة: {t_title} - موعد التنبيه: {t_reminder}", "Task")
                         play_sound_alert()
-                        st.success("تم إضافة المهمة بنجاح وتفعيل المنبه والتنبيه الصوتي!")
+                        st.success("تم حفظ المهمة وتفعيل التنبيه الصوتي وإرسال الإشعار للموظف بنجاح!")
                         st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -645,8 +643,56 @@ def task_organizer():
 
 def internal_chat():
     user = st.session_state.user
-    page_header("Internal Chat", "Secure communication.")
-    st.info("Chat module active.")
+    page_header("Internal Chat", "الدردشة والرسائل الداخلية الفورية بين الموظفين.")
+
+    emps = query("SELECT id, full_name, employee_code FROM employees WHERE id != ? AND active = 1", (user["id"],))
+    if emps.empty:
+        st.info("لا يوجد موظفون آخرون متاحون للدردشة.")
+        return
+
+    emp_dict = {f"{row['full_name']} ({row['employee_code']})": row["id"] for row in emps}
+    selected_target_name = st.selectbox("اختر الموظف لبدء المحادثة", list(emp_dict.keys()))
+    target_id = emp_dict[selected_target_name]
+
+    st.markdown("---")
+
+    # جلب الرسائل بين المستخدم والمستهدف
+    messages = query("""
+        SELECT * FROM messages 
+        WHERE (sender_id = ? AND receiver_id = ?) 
+           OR (sender_id = ? AND receiver_id = ?)
+        ORDER BY id ASC
+    """, (user["id"], target_id, target_id, user["id"]))
+
+    chat_container = st.container(height=400)
+    with chat_container:
+        if messages.empty:
+            st.info("لا توجد رسائل سابقة في هذه المحادثة. ابدأ الإرسال الآن.")
+        else:
+            for r in messages.iterrows():
+                row = r[1]
+                sender_name = "أنت" if row["sender_id"] == user["id"] else selected_target_name.split('(')[0]
+                align_style = "text-align: right; background: rgba(56,189,248,0.15); padding: 10px; border-radius: 10px; margin-bottom: 8px;" if row["sender_id"] == user["id"] else "text-align: left; background: rgba(30,58,138,0.3); padding: 10px; border-radius: 10px; margin-bottom: 8px;"
+                st.markdown(f"""
+                    <div style="{align_style}">
+                        <b>{sender_name}:</b> {row['message']}<br>
+                        <span class="small-muted">{row['created_at']}</span>
+                    </div>
+                """, unsafe_allow_html=True)
+
+    # نموذج إرسال رسالة جديدة
+    with st.form("chat_form", clear_on_submit=True):
+        msg_text = st.text_input("اكتب رسالتك هنا...")
+        send_btn = st.form_submit_button("إرسال الرسالة", use_container_width=True)
+        if send_btn:
+            if msg_text.strip():
+                execute("""
+                    INSERT INTO messages (sender_id, receiver_id, message)
+                    VALUES (?, ?, ?)
+                """, (user["id"], target_id, msg_text))
+                create_notification(target_id, f"رسالة جديدة من {user['full_name']}", msg_text, "Chat")
+                play_sound_alert()
+                st.rerun()
 
 def job_description_library():
     page_header("Job Description Library", "Word format job descriptions.")
