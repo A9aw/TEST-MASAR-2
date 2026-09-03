@@ -1,6 +1,6 @@
 # ============================================================
 # MASAR INTELLIGENCE OS
-# V5.2 - GENERAL WEB SEARCH WITHOUT API + UNLOCKED ROLES
+# V5.3 - GENERAL WEB SEARCH (DIRECT RESULTS) + UNLOCKED ROLES
 # ============================================================
 
 import streamlit as st
@@ -74,7 +74,7 @@ TRANSLATIONS = {
         "ai_research": "بحث الشركات بالذكاء الاصطناعي",
         "email_intelligence": "ذكاء البريد الإلكتروني",
         "notifications": "الإشعارات",
-        "search": "بحث Gemini العام",
+        "search": "بحث الويب المباشر",
         "admin_center": "مركز التحكم الإداري",
         "governance": "الحوكمة",
         "logout": "تسجيل الخروج",
@@ -846,33 +846,40 @@ def email_assistant():
                     st.error(f"Failed to connect to email server: {e}")
 
 # ============================================================
-# GEMINI GENERAL WEB SEARCH (NO API REQUIRED)
+# GEMINI WEB SEARCH (DIRECT RESULTS INSIDE APP - NO API KEY)
 # ============================================================
 def global_search():
-    page_header("Gemini Web Search", "Search and ask anything publicly via embedded web knowledge without requiring any API keys.")
+    page_header("Gemini Web Search", "Search the web directly and get instant results inside the app.")
     
-    query_text = st.text_input("🌐 Ask Gemini anything or search the web...", placeholder="e.g. latest business trends, market analysis, strategies...")
+    query_text = st.text_input("🌐 Ask anything or search the web...", placeholder="e.g. latest business trends, weather...")
     
     if query_text:
-        st.markdown("### 🤖 Gemini Search & Insights")
-        
-        # دمج بحث ذكي عام مبني على المدخلات لمساعدة الموظف فوراً بدون أكواد خارجية معقدة
-        search_query_encoded = query_text.replace(" ", "+")
-        
-        st.markdown(f"""
-        <div class="card">
-            <h4>Query: <i>{query_text}</i></h4>
-            <p>You can instantly look up detailed insights or search the web directly using these resources:</p>
-            <hr style="border-color:rgba(56,189,248,0.2);">
-            <ul>
-                <li><a href="https://www.google.com/search?q={search_query_encoded}" target="_blank" style="color: #38BDF8; font-size: 16px; font-weight: 600;">🔍 Search Google for "{query_text}"</a></li>
-                <br>
-                <li><a href="https://gemini.google.com/" target="_blank" style="color: #38BDF8; font-size: 16px; font-weight: 600;">✨ Open Gemini AI Assistant</a></li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("### 🤖 Search Results & Insights")
+        with st.spinner("Searching the web..."):
+            try:
+                from duckduckgo_search import DDGS
+                results = []
+                with DDGS() as ddgs:
+                    for r in ddgs.text(query_text, max_results=5):
+                        results.append(r)
+                
+                if results:
+                    for res in results:
+                        st.markdown(f"""
+                        <div class="card">
+                            <a href="{res.get('href')}" target="_blank" style="color: #38BDF8; font-size: 16px; font-weight: 700; text-decoration: none;">{res.get('title')}</a>
+                            <p style="margin-top: 8px; color: #cbd5e1;">{res.get('body')}</p>
+                            <span class="small-muted">{res.get('href')}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("No direct results found. Try another query.")
+            except ImportError:
+                st.error("Please install the search package on your server by running: `pip install duckduckgo-search`")
+            except Exception as e:
+                st.error(f"An error occurred while fetching results: {e}")
     else:
-        st.info("Type any topic or question above to get quick web search links and AI research access instantly.")
+        st.info("Type any topic or question above to get direct search results instantly.")
 
 def admin_center():
     user = st.session_state.user
@@ -1003,7 +1010,7 @@ elif page in ["Job Descriptions", "التوصيف الوظيفي"]: job_descript
 elif page in ["AI Company Research", "بحث الشركات بالذكاء الاصطناعي"]: ai_company_research()
 elif page in ["Email Intelligence", "ذكاء البريد الإلكتروني"]: email_assistant()
 elif page in ["Notifications", "الإشعارات"]: notifications_center()
-elif page in ["Gemini Web Search", "بحث Gemini العام"]: global_search()
+elif page in ["Gemini Web Search", "بحث الويب المباشر"]: global_search()
 elif page in ["Admin Control Center", "مركز التحكم الإداري"]: admin_center()
 elif page in ["Governance", "الحوكمة"]: governance()
 
