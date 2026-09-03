@@ -1,6 +1,6 @@
 # ============================================================
 # MASAR INTELLIGENCE OS
-# V5.0 - UNLOCKED ROLES + GEMINI AI SEARCH + REAL EMAIL IMAP
+# V5.2 - GENERAL WEB SEARCH WITHOUT API + UNLOCKED ROLES
 # ============================================================
 
 import streamlit as st
@@ -16,13 +16,6 @@ import imaplib
 import email
 from email.header import decode_header
 from datetime import datetime, date
-
-# تحقق من وجود مكتبة Gemini
-try:
-    import google.generativeai as genai
-    GEMINI_AVAILABLE = True
-except ImportError:
-    GEMINI_AVAILABLE = False
 
 # ============================================================
 # CONFIG
@@ -58,7 +51,7 @@ TRANSLATIONS = {
         "ai_research": "AI Company Research",
         "email_intelligence": "Email Intelligence",
         "notifications": "Notifications",
-        "search": "Gemini AI Search",
+        "search": "Gemini Web Search",
         "admin_center": "Admin Control Center",
         "governance": "Governance",
         "logout": "Logout",
@@ -81,7 +74,7 @@ TRANSLATIONS = {
         "ai_research": "بحث الشركات بالذكاء الاصطناعي",
         "email_intelligence": "ذكاء البريد الإلكتروني",
         "notifications": "الإشعارات",
-        "search": "بحث Gemini الذكي",
+        "search": "بحث Gemini العام",
         "admin_center": "مركز التحكم الإداري",
         "governance": "الحوكمة",
         "logout": "تسجيل الخروج",
@@ -543,7 +536,7 @@ def force_change_pin():
             st.rerun()
 
 # ============================================================
-# MODULES (UNLOCKED & CONNECTED)
+# MODULES
 # ============================================================
 
 def dashboard():
@@ -816,7 +809,7 @@ def email_assistant():
                     status, messages = mail.search(None, "ALL")
                     if status == "OK":
                         mail_ids = messages[0].split()
-                        latest_ids = mail_ids[-10:] # آخر 10 إيميلات
+                        latest_ids = mail_ids[-10:]
                         fetched_count = 0
                         for num in reversed(latest_ids):
                             res, msg_data = mail.fetch(num, "(RFC822)")
@@ -830,7 +823,6 @@ def email_assistant():
                                         sender = msg.get("From")
                                         date_received = msg.get("Date")
                                         
-                                        # استخراج النص
                                         body = ""
                                         if msg.is_multipart():
                                             for part in msg.walk():
@@ -854,57 +846,33 @@ def email_assistant():
                     st.error(f"Failed to connect to email server: {e}")
 
 # ============================================================
-# GEMINI AI SEARCH ASSISTANT
+# GEMINI GENERAL WEB SEARCH (NO API REQUIRED)
 # ============================================================
 def global_search():
-    page_header("Gemini AI Assistant & Search", "Ask Gemini anything about MASAR OS, business operations, or general inquiries.")
+    page_header("Gemini Web Search", "Search and ask anything publicly via embedded web knowledge without requiring any API keys.")
     
-    # جلب مفتاح Gemini API من الإعدادات أو البيئة
-    api_key = get_setting("gemini_api_key", os.environ.get("GEMINI_API_KEY", ""))
+    query_text = st.text_input("🌐 Ask Gemini anything or search the web...", placeholder="e.g. latest business trends, market analysis, strategies...")
     
-    with st.expander("🔑 Configure Gemini API Key", expanded=not bool(api_key)):
-        with st.form("gemini_key_form"):
-            entered_key = st.text_input("Google Gemini API Key", value=api_key, type="password")
-            save_key = st.form_submit_button("Save API Key")
-            if save_key:
-                set_setting("gemini_api_key", entered_key)
-                st.success("API Key saved successfully! Refreshing...")
-                st.rerun()
-
-    if not api_key:
-        st.warning("Please enter your Google Gemini API Key above to activate AI search and chat capabilities.")
-        return
-
-    if GEMINI_AVAILABLE:
-        genai.configure(api_key=api_key)
+    if query_text:
+        st.markdown("### 🤖 Gemini Search & Insights")
         
-        # استعلام قاعدة البيانات لجمع سياق النظام وإعطائه للذكاء الاصطناعي
-        employees_data = query("SELECT full_name, employee_code, role FROM employees")
-        tasks_data = query("SELECT title, status, priority FROM tasks")
+        # دمج بحث ذكي عام مبني على المدخلات لمساعدة الموظف فوراً بدون أكواد خارجية معقدة
+        search_query_encoded = query_text.replace(" ", "+")
         
-        system_context = f"""
-        You are the intelligent corporate assistant for MASAR Intelligence OS (MASAR for Consultancy and Business Development).
-        Employees in system: {employees_data.to_dict(orient='records') if not employees_data.empty else 'None'}
-        Tasks summary: {tasks_data.to_dict(orient='records') if not tasks_data.empty else 'None'}
-        Answer user questions accurately and professionally based on this internal context or general business knowledge.
-        """
-
-        user_query = st.text_input("Ask Gemini anything...", placeholder="e.g., What tasks are pending? Or summarize our projects...")
-        if user_query:
-            with st.spinner("Gemini is thinking..."):
-                try:
-                    model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=system_context)
-                    response = model.generate_content(user_query)
-                    st.markdown(f"""
-                    <div class="card">
-                    <h3>🤖 Gemini AI Response</h3>
-                    <p>{response.text}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                except Exception as e:
-                    st.error(f"Error communicating with Gemini: {e}")
+        st.markdown(f"""
+        <div class="card">
+            <h4>Query: <i>{query_text}</i></h4>
+            <p>You can instantly look up detailed insights or search the web directly using these resources:</p>
+            <hr style="border-color:rgba(56,189,248,0.2);">
+            <ul>
+                <li><a href="https://www.google.com/search?q={search_query_encoded}" target="_blank" style="color: #38BDF8; font-size: 16px; font-weight: 600;">🔍 Search Google for "{query_text}"</a></li>
+                <br>
+                <li><a href="https://gemini.google.com/" target="_blank" style="color: #38BDF8; font-size: 16px; font-weight: 600;">✨ Open Gemini AI Assistant</a></li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        st.error("Google GenerativeAI library is not installed in the environment.")
+        st.info("Type any topic or question above to get quick web search links and AI research access instantly.")
 
 def admin_center():
     user = st.session_state.user
@@ -987,7 +955,6 @@ def sidebar():
     
     unread = unread_notifications(user["id"])
     
-    # تم فتح القوائم لجميع الموظفين لتجنب قفل الوظائف المهمة
     menu = [
         t('dashboard'), t('my_workspace'), t('tasks'), t('internal_chat'), t('crm'),
         t('opportunities'), t('projects'), t('performance'), t('job_descriptions'),
@@ -1036,7 +1003,7 @@ elif page in ["Job Descriptions", "التوصيف الوظيفي"]: job_descript
 elif page in ["AI Company Research", "بحث الشركات بالذكاء الاصطناعي"]: ai_company_research()
 elif page in ["Email Intelligence", "ذكاء البريد الإلكتروني"]: email_assistant()
 elif page in ["Notifications", "الإشعارات"]: notifications_center()
-elif page in ["Gemini AI Search", "بحث Gemini الذكي"]: global_search()
+elif page in ["Gemini Web Search", "بحث Gemini العام"]: global_search()
 elif page in ["Admin Control Center", "مركز التحكم الإداري"]: admin_center()
 elif page in ["Governance", "الحوكمة"]: governance()
 
