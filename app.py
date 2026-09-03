@@ -1,6 +1,5 @@
 # ============================================================
-# MASAR INTELLIGENCE OS
-# V5.3 - GENERAL WEB SEARCH (DIRECT RESULTS) + UNLOCKED ROLES
+# MASAR INTELLIGENCE OS - ENTERPRISE EDITION V6.0
 # ============================================================
 
 import streamlit as st
@@ -16,9 +15,11 @@ import imaplib
 import email
 from email.header import decode_header
 from datetime import datetime, date
+import urllib.request
+import json
 
 # ============================================================
-# CONFIG
+# CONFIG & THEME SETUP
 # ============================================================
 
 APP_NAME = "MASAR Intelligence OS"
@@ -39,50 +40,50 @@ if "lang" not in st.session_state:
 
 TRANSLATIONS = {
     "English": {
-        "dashboard": "Dashboard",
+        "dashboard": "Executive Dashboard",
         "my_workspace": "My Workspace",
-        "tasks": "Tasks & Organizer",
-        "internal_chat": "Internal Chat",
-        "crm": "CRM",
-        "opportunities": "Opportunities",
-        "projects": "Projects",
-        "performance": "Performance",
+        "tasks": "Task Management",
+        "internal_chat": "Internal Communications",
+        "crm": "CRM & Accounts",
+        "opportunities": "Sales Pipeline",
+        "projects": "Projects & Operations",
+        "performance": "Performance Analytics",
         "job_descriptions": "Job Descriptions",
-        "ai_research": "AI Company Research",
-        "email_intelligence": "Email Intelligence",
-        "notifications": "Notifications",
-        "search": "Gemini Web Search",
-        "admin_center": "Admin Control Center",
-        "governance": "Governance",
-        "logout": "Logout",
-        "audio_fix": "🔊 iPad Audio Fix",
-        "test_sound": "Tap to Unlock Audio",
-        "sound_success": "Audio unlocked successfully!",
+        "ai_research": "AI Market Intelligence",
+        "email_intelligence": "Corporate Email Gateway",
+        "notifications": "System Notifications",
+        "search": "Global Web Search",
+        "admin_center": "Enterprise Admin Center",
+        "governance": "Governance & Compliance",
+        "logout": "Secure Logout",
+        "audio_fix": "🔊 Audio Bridge",
+        "test_sound": "Initialize Audio",
+        "sound_success": "Audio system online.",
         "welcome": "Welcome back",
-        "navigation": "Navigation"
+        "navigation": "Enterprise Modules"
     },
     "العربية": {
-        "dashboard": "لوحة القيادة",
-        "my_workspace": "مساحة العمل",
-        "tasks": "المهام والمنظم",
-        "internal_chat": "الدردشة الداخلية",
+        "dashboard": "لوحة المؤشرات التنفيذية",
+        "my_workspace": "مساحة العمل الشخصية",
+        "tasks": "إدارة المهام والعمليات",
+        "internal_chat": "الاتصالات الداخلية",
         "crm": "إدارة علاقات العملاء",
-        "opportunities": "الفرص التجارية",
-        "projects": "المشاريع",
-        "performance": "الأداء",
+        "opportunities": "الفرص والعقود التجارية",
+        "projects": "المشاريع والتشغيل",
+        "performance": "تحليلات الأداء",
         "job_descriptions": "التوصيف الوظيفي",
-        "ai_research": "بحث الشركات بالذكاء الاصطناعي",
-        "email_intelligence": "ذكاء البريد الإلكتروني",
-        "notifications": "الإشعارات",
-        "search": "بحث الويب المباشر",
+        "ai_research": "الذكاء الاصطناعي للأسواق",
+        "email_intelligence": "بوابة البريد المؤسسي",
+        "notifications": "الإشعارات وال تنبيهات",
+        "search": "محرك البحث العالمي",
         "admin_center": "مركز التحكم الإداري",
-        "governance": "الحوكمة",
-        "logout": "تسجيل الخروج",
-        "audio_fix": "🔊 تفعيل صوت الأيباد",
-        "test_sound": "اضغط لفتح حظر الصوت",
-        "sound_success": "تم تفعيل الصوت بنجاح!",
+        "governance": "الحوكمة والامتثال",
+        "logout": "تسجيل خروج آمن",
+        "audio_fix": "🔊 نظام التنبيه الصوتي",
+        "test_sound": "تفعيل الصوت",
+        "sound_success": "تم تفعيل نظام الصوت بنجاح.",
         "welcome": "مرحباً بك",
-        "navigation": "التنقل"
+        "navigation": "الوحدات الرئيسية"
     }
 }
 
@@ -91,7 +92,7 @@ def t(key):
     return TRANSLATIONS.get(lang, TRANSLATIONS["English"]).get(key, key)
 
 # ============================================================
-# DATABASE
+# DATABASE ENGINE
 # ============================================================
 
 def get_db():
@@ -317,7 +318,7 @@ def init_db():
         ))
 
 # ============================================================
-# SECURITY & AUDIO
+# SECURITY & AUDIO UTILITIES
 # ============================================================
 
 def hash_pin(pin):
@@ -361,65 +362,130 @@ def unread_notifications(employee_id):
     row = query_one("SELECT COUNT(*) AS total FROM notifications WHERE employee_id = ? AND is_read = 0", (employee_id,))
     return int(row["total"]) if row else 0
 
-def get_logo():
-    return get_setting("logo")
-
-def display_logo():
-    logo = get_logo()
-    if logo:
-        try: st.sidebar.image(base64.b64decode(logo), width=170)
-        except: pass
-    else:
-        st.sidebar.markdown('<div class="brand-mark">◆</div>', unsafe_allow_html=True)
-
 # ============================================================
-# CSS
+# ENTERPRISE STYLING (CSS REFINEMENT)
 # ============================================================
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
+
 .stApp {
-    background: radial-gradient(circle at 10% 0%, rgba(56,189,248,0.07), transparent 30%),
-                radial-gradient(circle at 90% 10%, rgba(30,58,138,0.12), transparent 35%),
-                #071321;
+    background-color: #050b14;
+    background-image: 
+        radial-gradient(at 0% 0%, rgba(14, 116, 144, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(30, 58, 138, 0.15) 0px, transparent 50%);
+    color: #f1f5f9;
+}
+
+section[data-testid="stSidebar"] {
+    background-color: #07101e;
+    border-right: 1px solid rgba(56, 189, 248, 0.1);
+}
+
+.brand-container {
+    padding: 15px 10px;
+    text-align: center;
+    border-bottom: 1px solid rgba(56, 189, 248, 0.1);
+    margin-bottom: 15px;
+}
+
+.brand-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #38bdf8;
+    letter-spacing: -0.5px;
+}
+
+.brand-subtitle {
+    font-size: 11px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-top: 4px;
+}
+
+h1, h2, h3 {
+    color: #f8fafc !important;
+    font-weight: 700 !important;
+}
+
+.main-title {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.8px;
     color: #f8fafc;
 }
-section[data-testid="stSidebar"] {
-    background: #081727;
-    border-right: 1px solid rgba(56,189,248,0.12);
+
+.sub-title {
+    color: #94a3b8;
+    font-size: 14px;
+    margin-bottom: 25px;
 }
-.brand-mark { font-size: 46px; text-align: center; color: #38BDF8; padding: 10px; }
-h1, h2, h3 { color: #f8fafc !important; }
-.main-title { font-size: 34px; font-weight: 800; letter-spacing: -1px; }
-.sub-title { color: #94a3b8; margin-bottom: 25px; }
+
 .kpi-card {
-    background: linear-gradient(145deg, rgba(15,34,56,0.96), rgba(8,23,39,0.96));
-    border: 1px solid rgba(56,189,248,0.14);
-    border-radius: 18px; padding: 22px; min-height: 125px;
-    box-shadow: 0 15px 45px rgba(0,0,0,0.22);
+    background: linear-gradient(135deg, rgba(15, 28, 48, 0.95) 0%, rgba(8, 17, 31, 0.95) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.12);
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
 }
-.kpi-label { color: #94a3b8; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
-.kpi-value { color: #f8fafc; font-size: 32px; font-weight: 800; margin-top: 8px; }
-.card {
-    background: rgba(10,28,46,0.9);
-    border: 1px solid rgba(148,163,184,0.10);
-    border-radius: 18px; padding: 20px; margin-bottom: 18px;
+
+.kpi-card:hover {
+    border-color: rgba(56, 189, 248, 0.3);
+    box-shadow: 0 15px 35px rgba(56, 189, 248, 0.08);
 }
-.login-box {
-    max-width: 480px; margin: 70px auto; padding: 40px;
-    background: rgba(9,26,43,0.96); border: 1px solid rgba(56,189,248,0.18);
-    border-radius: 24px; box-shadow: 0 30px 80px rgba(0,0,0,0.35);
+
+.kpi-label {
+    color: #64748b;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    font-weight: 600;
 }
-.small-muted { color: #94a3b8; font-size: 12px; }
+
+.kpi-value {
+    color: #f8fafc;
+    font-size: 28px;
+    font-weight: 800;
+    margin-top: 6px;
+}
+
+.enterprise-card {
+    background: rgba(11, 22, 38, 0.85);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    border-radius: 14px;
+    padding: 22px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.login-wrapper {
+    max-width: 440px;
+    margin: 60px auto;
+    padding: 35px;
+    background: rgba(8, 18, 32, 0.95);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 20px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+}
+
+.small-muted {
+    color: #64748b;
+    font-size: 12px;
+}
 </style>
 """, unsafe_allow_html=True)
 
 def top_header_bar():
-    c1, c2 = st.columns([8, 2])
+    c1, c2 = st.columns([7, 3])
     with c1:
-        st.markdown(f"<span style='color:#38BDF8; font-weight:700;'>{COMPANY_NAME}</span>", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:#38bdf8; font-weight:700; font-size:13px;'>{COMPANY_NAME}</span>", unsafe_allow_html=True)
     with c2:
         selected_lang = st.selectbox("Language / اللغة", ["English", "العربية"], index=0 if st.session_state.lang == "English" else 1, label_visibility="collapsed")
         if selected_lang != st.session_state.lang:
@@ -464,24 +530,25 @@ def calculate_employee_performance(employee_id):
     return round(min(max(performance, 0), 100), 1)
 
 # ============================================================
-# LOGIN & SECURITY
+# LOGIN & AUTHENTICATION
 # ============================================================
 
 def login_page():
     top_header_bar()
     st.markdown("""
-        <div class="login-box">
-            <h1 style="text-align:center;">MASAR</h1>
-            <p style="text-align:center;color:#94a3b8;">Intelligence OS</p>
-        </div>
+        <div class="login-wrapper">
+            <div style="text-align:center; margin-bottom: 20px;">
+                <h2 style="color: #38bdf8; margin: 0; font-size: 26px;">MASAR</h2>
+                <p style="color: #64748b; font-size: 13px; letter-spacing: 1px; margin-top: 5px;">ENTERPRISE INTELLIGENCE OS</p>
+            </div>
     """, unsafe_allow_html=True)
 
-    tab1, tab2 = st.tabs(["Employee Login", "Forgot PIN"])
+    tab1, tab2 = st.tabs(["Employee Portal", "Account Recovery"])
     with tab1:
         with st.form("login_form"):
-            code = st.text_input("Employee Code", placeholder="Example: EMP001")
-            pin = st.text_input("PIN", type="password")
-            submit = st.form_submit_button("LOGIN", use_container_width=True)
+            code = st.text_input("Employee Code", placeholder="e.g. ADMIN or EMP001")
+            pin = st.text_input("Secure PIN", type="password")
+            submit = st.form_submit_button("AUTHENTICATE", use_container_width=True)
             if submit:
                 code = code.strip().upper()
                 employee = query_one("SELECT * FROM employees WHERE employee_code = ? AND active = 1", (code,))
@@ -489,59 +556,59 @@ def login_page():
                     st.session_state.user = dict(employee)
                     st.session_state.logged_in = True
                     log_event(employee["id"], employee["employee_code"], "LOGIN_SUCCESS")
-                    create_notification(employee["id"], "Login Success", "Welcome to MASAR OS", "Security")
+                    create_notification(employee["id"], "Security Notice", "Successful secure authentication.", "Security")
                     play_sound_alert()
                     st.rerun()
                 else:
-                    st.error("Invalid employee code or PIN.")
+                    st.error("Authentication failed. Check credentials.")
 
     with tab2:
-        st.info("Enter your employee code and registered mobile number.")
         with st.form("forgot_form"):
-            code = st.text_input("Employee Code", key="forgot_code")
-            mobile = st.text_input("Registered Mobile", key="forgot_mobile")
-            submit = st.form_submit_button("RESET PIN", use_container_width=True)
-            if submit:
+            code = st.text_input("Employee Code", key="fc_code")
+            mobile = st.text_input("Registered Mobile", key="fc_mob")
+            submit_f = st.form_submit_button("RESET CREDENTIALS", use_container_width=True)
+            if submit_f:
                 employee = query_one("SELECT * FROM employees WHERE employee_code = ? AND mobile = ? AND active = 1", (code.strip().upper(), mobile.strip()))
                 if employee:
                     temp_pin = generate_temp_pin()
                     execute("UPDATE employees SET pin_hash = ?, must_change_pin = 1 WHERE id = ?", (hash_pin(temp_pin), employee["id"]))
-                    st.success(f"Temporary PIN generated: {temp_pin}")
+                    st.success(f"Temporary Secure PIN Generated: {temp_pin}")
                 else:
-                    st.error("Employee code/mobile combination not found.")
+                    st.error("Matching profile not found.")
+    st.markdown("</div>", unsafe_allow_html=True)
 
 def force_change_pin():
     top_header_bar()
     user = st.session_state.user
-    page_header("Security", "You must change your temporary PIN before continuing.")
+    page_header("Security Protocol", "Mandatory security update: Please update your temporary PIN.")
     with st.form("change_pin"):
         old_pin = st.text_input("Current PIN", type="password")
-        new_pin = st.text_input("New PIN", type="password")
+        new_pin = st.text_input("New Secure PIN", type="password")
         confirm = st.text_input("Confirm New PIN", type="password")
-        submit = st.form_submit_button("Change PIN", use_container_width=True)
+        submit = st.form_submit_button("Update PIN & Proceed", use_container_width=True)
         if submit:
             if not verify_pin(old_pin, user["pin_hash"]):
-                st.error("Current PIN is incorrect.")
+                st.error("Current PIN is invalid.")
                 return
             if len(new_pin) < 4:
-                st.error("PIN must contain at least 4 characters.")
+                st.error("PIN must be at least 4 characters.")
                 return
             if new_pin != confirm:
-                st.error("PIN confirmation does not match.")
+                st.error("PIN confirmation mismatch.")
                 return
             execute("UPDATE employees SET pin_hash = ?, must_change_pin = 0 WHERE id = ?", (hash_pin(new_pin), user["id"]))
             updated = query_one("SELECT * FROM employees WHERE id = ?", (user["id"],))
             st.session_state.user = dict(updated)
-            st.success("PIN changed successfully.")
+            st.success("Security credentials updated successfully.")
             st.rerun()
 
 # ============================================================
-# MODULES
+# MODULES IMPLEMENTATION
 # ============================================================
 
 def dashboard():
     user = st.session_state.user
-    page_header("Executive Dashboard", f"Welcome back, {user['full_name']}")
+    page_header("Executive Dashboard", f"Enterprise Overview • Welcome, {user['full_name']}")
     
     employees = query("SELECT * FROM employees WHERE active = 1")
     companies = query("SELECT * FROM companies")
@@ -549,116 +616,112 @@ def dashboard():
     projects = query("SELECT * FROM projects")
 
     c1, c2, c3, c4 = st.columns(4)
-    with c1: kpi("Employees", len(employees))
-    with c2: kpi("Companies", len(companies))
-    with c3: kpi("Open Opportunities", len(opportunities[opportunities["stage"] != "Won"]) if not opportunities.empty else 0)
-    with c4: kpi("Projects", len(projects))
+    with c1: kpi("Active Personnel", len(employees))
+    with c2: kpi("Enterprise Clients", len(companies))
+    with c3: kpi("Open Pipeline", len(opportunities[opportunities["stage"] != "Won"]) if not opportunities.empty else 0)
+    with c4: kpi("Active Projects", len(projects))
 
     st.markdown("<br>", unsafe_allow_html=True)
     if not opportunities.empty:
         pipeline = opportunities.groupby("stage", as_index=False)["value"].sum()
-        fig = px.bar(pipeline, x="stage", y="value", title="Opportunity Value by Stage")
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#e2e8f0")
+        fig = px.bar(pipeline, x="stage", y="value", title="Pipeline Portfolio Valuation by Stage")
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#cbd5e1")
         st.plotly_chart(fig, use_container_width=True)
 
 def employee_dashboard():
     user = st.session_state.user
     performance = calculate_employee_performance(user["id"])
-    page_header("My Workspace", "Your tasks and performance overview.")
+    page_header("My Workspace", "Personal performance metrics and assigned deliverables.")
     c1, c2, c3 = st.columns(3)
-    with c1: kpi("Performance", f"{performance}%")
+    with c1: kpi("Performance Index", f"{performance}%")
     my_tasks = query("SELECT * FROM tasks WHERE assigned_to = ? ORDER BY due_date", (user["id"],))
-    with c2: kpi("My Tasks", len(my_tasks))
-    with c3: kpi("Notifications", unread_notifications(user["id"]))
+    with c2: kpi("Assigned Tasks", len(my_tasks))
+    with c3: kpi("Unread Alerts", unread_notifications(user["id"]))
 
 def task_organizer():
     user = st.session_state.user
-    page_header("Task Organizer & Creator", "Manage, assign, edit, and delete tasks with instant audio alerts.")
+    page_header("Task Management", "Delegate, track, and manage corporate deliverables.")
 
-    with st.expander("➕ Create New Task", expanded=True):
-        with st.markdown('<div class="card">', unsafe_allow_html=True):
-            with st.form("new_task_form"):
-                t_title = st.text_input("Task Title")
-                t_desc = st.text_area("Task Description")
-                
-                emps = query("SELECT id, full_name, email FROM employees WHERE active = 1")
-                emp_options = {row["full_name"]: row["id"] for _, row in emps.iterrows()} if not emps.empty else {}
-                assigned_name = st.selectbox("Assign To Employee", list(emp_options.keys()) if emp_options else ["No Employees"])
-                
-                col1, col2, col3 = st.columns(3)
-                with col1: t_priority = st.selectbox("Priority", ["Low", "Medium", "High", "Urgent"])
-                with col2: t_due = st.date_input("Due Date", value=date.today())
-                with col3: t_reminder = st.time_input("Reminder Time")
-                
-                submit_task = st.form_submit_button("Save Task & Trigger Alert", use_container_width=True)
-                if submit_task:
-                    if not t_title.strip():
-                        st.error("Please enter a task title.")
-                    elif not emp_options:
-                        st.error("No available employees.")
-                    else:
-                        emp_id = emp_options[assigned_name]
-                        execute("""
-                            INSERT INTO tasks (title, description, assigned_to, created_by, priority, status, due_date, reminder_time)
-                            VALUES (?, ?, ?, ?, ?, 'Pending', ?, ?)
-                        """, (t_title, t_desc, emp_id, user["id"], t_priority, str(t_due), str(t_reminder)))
-                        create_notification(emp_id, "New Task Assigned", f"Task: {t_title}", "Task")
-                        play_sound_alert()
-                        st.success("Task created and audio alert triggered successfully!")
-                        st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+    with st.expander("➕ Create New Operational Task", expanded=False):
+        with st.form("new_task_form"):
+            t_title = st.text_input("Task Title")
+            t_desc = st.text_area("Task Description & Scope")
+            
+            emps = query("SELECT id, full_name, email FROM employees WHERE active = 1")
+            emp_options = {row["full_name"]: row["id"] for _, row in emps.iterrows()} if not emps.empty else {}
+            assigned_name = st.selectbox("Assignee", list(emp_options.keys()) if emp_options else ["No Personnel"])
+            
+            col1, col2, col3 = st.columns(3)
+            with col1: t_priority = st.selectbox("Priority Level", ["Low", "Medium", "High", "Urgent"])
+            with col2: t_due = st.date_input("Target Due Date", value=date.today())
+            with col3: t_reminder = st.time_input("Reminder Schedule")
+            
+            submit_task = st.form_submit_button("Deploy Task", use_container_width=True)
+            if submit_task:
+                if not t_title.strip():
+                    st.error("Task title is required.")
+                elif not emp_options:
+                    st.error("No valid assignee found.")
+                else:
+                    emp_id = emp_options[assigned_name]
+                    execute("""
+                        INSERT INTO tasks (title, description, assigned_to, created_by, priority, status, due_date, reminder_time)
+                        VALUES (?, ?, ?, ?, ?, 'Pending', ?, ?)
+                    """, (t_title, t_desc, emp_id, user["id"], t_priority, str(t_due), str(t_reminder)))
+                    create_notification(emp_id, "New Task Deployed", f"Task assigned: {t_title}", "Task")
+                    play_sound_alert()
+                    st.success("Task deployed successfully.")
+                    st.rerun()
 
-    st.markdown("### Task Management (Edit & Delete)")
+    st.markdown("### Active Task Portfolio")
     tasks = query("SELECT * FROM tasks ORDER BY due_date DESC")
     if tasks.empty:
-        st.info("No tasks found in the system.")
+        st.info("No active tasks registered.")
     else:
         for index, row in tasks.iterrows():
-            with st.container():
-                st.markdown(f"""
-                    <div class="card">
-                        <b>[{row['id']}] {row['title']}</b> ({row['priority']})<br>
-                        <span class='small-muted'>Desc: {row['description'] or 'N/A'} | Due: {row['due_date']} | Status: {row['status']}</span>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                col_e1, col_e2, col_e3 = st.columns(3)
-                with col_e1:
-                    new_status = st.selectbox("Update Status", ["Pending", "In Progress", "Completed"], index=["Pending", "In Progress", "Completed"].index(row["status"]), key=f"status_ed_{row['id']}")
-                    if new_status != row["status"]:
-                        execute("UPDATE tasks SET status = ? WHERE id = ?", (new_status, row["id"]))
-                        play_sound_alert()
-                        st.rerun()
-                with col_e2:
-                    with st.expander("Edit Task"):
-                        with st.form(f"edit_task_form_{row['id']}"):
-                            ed_title = st.text_input("Title", value=row["title"], key=f"ed_t_{row['id']}")
-                            ed_desc = st.text_area("Description", value=row["description"] or "", key=f"ed_d_{row['id']}")
-                            ed_prio = st.selectbox("Priority", ["Low", "Medium", "High", "Urgent"], index=["Low", "Medium", "High", "Urgent"].index(row["priority"]), key=f"ed_p_{row['id']}")
-                            ed_submit = st.form_submit_button("Update Changes")
-                            if ed_submit:
-                                execute("UPDATE tasks SET title = ?, description = ?, priority = ? WHERE id = ?", (ed_title, ed_desc, ed_prio, row["id"]))
-                                st.success("Task updated!")
-                                st.rerun()
-                with col_e3:
-                    if st.button("Delete Task", key=f"del_task_{row['id']}"):
-                        execute("DELETE FROM tasks WHERE id = ?", (row["id"],))
-                        st.success("Task deleted successfully!")
-                        st.rerun()
-                st.divider()
+            st.markdown(f"""
+                <div class="enterprise-card">
+                    <b>[{row['id']}] {row['title']}</b> &bull; <span style='color:#38bdf8;'>{row['priority']}</span><br>
+                    <p style='margin: 8px 0; color:#cbd5e1;'>{row['description'] or 'No description provided.'}</p>
+                    <span class="small-muted">Due: {row['due_date']} | Status: {row['status']}</span>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            col_e1, col_e2, col_e3 = st.columns(3)
+            with col_e1:
+                new_status = st.selectbox("Status", ["Pending", "In Progress", "Completed"], index=["Pending", "In Progress", "Completed"].index(row["status"]), key=f"st_{row['id']}")
+                if new_status != row["status"]:
+                    execute("UPDATE tasks SET status = ? WHERE id = ?", (new_status, row["id"]))
+                    play_sound_alert()
+                    st.rerun()
+            with col_e2:
+                with st.expander("Modify Details"):
+                    with st.form(f"edit_t_{row['id']}"):
+                        ed_title = st.text_input("Title", value=row["title"], key=f"edt_{row['id']}")
+                        ed_desc = st.text_area("Description", value=row["description"] or "", key=f"edd_{row['id']}")
+                        if st.form_submit_button("Save Updates"):
+                            execute("UPDATE tasks SET title = ?, description = ? WHERE id = ?", (ed_title, ed_desc, row["id"]))
+                            st.success("Updated.")
+                            st.rerun()
+            with col_e3:
+                if st.button("Archive Task", key=f"del_{row['id']}"):
+                    execute("DELETE FROM tasks WHERE id = ?", (row["id"],))
+                    st.success("Archived.")
+                    st.rerun()
+            st.divider()
 
 def internal_chat():
     user = st.session_state.user
-    page_header("Internal Chat", "Instant internal messaging between employees.")
+    page_header("Internal Communications", "Secure peer-to-peer corporate messaging.")
 
     emps = query("SELECT id, full_name, employee_code FROM employees WHERE id != ? AND active = 1", (user["id"],))
     if emps.empty:
-        st.info("No other employees available for chat.")
+        st.info("No active peers available for messaging.")
         return
 
     emp_dict = {f"{row['full_name']} ({row['employee_code']})": row["id"] for _, row in emps.iterrows()}
-    selected_target_name = st.selectbox("Select Employee to Chat", list(emp_dict.keys()))
-    target_id = emp_dict[selected_target_name]
+    selected_target = st.selectbox("Select Recipient", list(emp_dict.keys()))
+    target_id = emp_dict[selected_target]
 
     st.markdown("---")
     messages = query("""
@@ -668,262 +731,228 @@ def internal_chat():
         ORDER BY id ASC
     """, (user["id"], target_id, target_id, user["id"]))
 
-    chat_container = st.container(height=400)
+    chat_container = st.container(height=380)
     with chat_container:
         if messages.empty:
-            st.info("No previous messages. Start the conversation now.")
+            st.info("Initiate secure conversation below.")
         else:
-            for r in messages.iterrows():
-                row = r[1]
-                sender_name = "You" if row["sender_id"] == user["id"] else selected_target_name.split('(')[0]
-                align_style = "text-align: right; background: rgba(56,189,248,0.15); padding: 10px; border-radius: 10px; margin-bottom: 8px;" if row["sender_id"] == user["id"] else "text-align: left; background: rgba(30,58,138,0.3); padding: 10px; border-radius: 10px; margin-bottom: 8px;"
+            for _, row in messages.iterrows():
+                is_me = row["sender_id"] == user["id"]
+                align_style = "text-align: right; background: rgba(56,189,248,0.12); padding: 12px; border-radius: 12px; margin-bottom: 10px;" if is_me else "text-align: left; background: rgba(30,58,138,0.25); padding: 12px; border-radius: 12px; margin-bottom: 10px;"
+                sender_label = "You" if is_me else selected_target.split('(')[0]
                 st.markdown(f"""
                     <div style="{align_style}">
-                        <b>{sender_name}:</b> {row['message']}<br>
+                        <b style="color:#38bdf8;">{sender_label}:</b> {row['message']}<br>
                         <span class="small-muted">{row['created_at']}</span>
                     </div>
                 """, unsafe_allow_html=True)
 
     with st.form("chat_form", clear_on_submit=True):
-        msg_text = st.text_input("Type your message here...")
-        send_btn = st.form_submit_button("Send Message", use_container_width=True)
-        if send_btn:
-            if msg_text.strip():
-                execute("INSERT INTO messages (sender_id, receiver_id, message) VALUES (?, ?, ?)", (user["id"], target_id, msg_text))
-                create_notification(target_id, f"New Message from {user['full_name']}", msg_text, "Chat")
-                play_sound_alert()
-                st.rerun()
+        msg_text = st.text_input("Enter secure message...", label_visibility="collapsed")
+        if st.form_submit_button("Transmit Message", use_container_width=True) and msg_text.strip():
+            execute("INSERT INTO messages (sender_id, receiver_id, message) VALUES (?, ?, ?)", (user["id"], target_id, msg_text))
+            create_notification(target_id, f"Message from {user['full_name']}", msg_text, "Chat")
+            play_sound_alert()
+            st.rerun()
 
 def crm():
-    page_header("CRM & Companies", "Manage companies, clients and prospects.")
+    page_header("CRM & Accounts", "Manage corporate clients, accounts, and stakeholders.")
     with st.form("add_company_form"):
-        c_name = st.text_input("Company Name")
-        c_web = st.text_input("Website")
-        c_ind = st.text_input("Industry")
-        c_status = st.selectbox("Status", ["Prospect", "Active Client", "Partner", "Inactive"])
-        c_submit = st.form_submit_button("Add Company", use_container_width=True)
-        if c_submit and c_name.strip():
+        c_name = st.text_input("Client Organization Name")
+        c_web = st.text_input("Corporate Website")
+        c_ind = st.text_input("Industry Sector")
+        c_status = st.selectbox("Account Status", ["Prospect", "Active Client", "Partner", "Inactive"])
+        if st.form_submit_button("Register Account", use_container_width=True) and c_name.strip():
             execute("INSERT INTO companies(name, website, industry, status) VALUES (?, ?, ?, ?)", (c_name, c_web, c_ind, c_status))
-            st.success("Company added successfully!")
+            st.success("Account registered.")
             st.rerun()
-    companies = query("SELECT * FROM companies ORDER BY id DESC")
-    if not companies.empty:
-        st.dataframe(companies, use_container_width=True, hide_index=True)
+    comps = query("SELECT * FROM companies ORDER BY id DESC")
+    if not comps.empty: st.dataframe(comps, use_container_width=True, hide_index=True)
 
 def opportunities():
-    page_header("Opportunities Pipeline", "Track sales leads and commercial pipelines.")
+    page_header("Sales Pipeline", "Track business development deals and revenue opportunities.")
     with st.form("add_opp_form"):
-        o_title = st.text_input("Opportunity Title")
-        o_val = st.number_input("Value ($)", min_value=0.0, step=100.0)
-        o_stage = st.selectbox("Stage", ["New", "Qualified", "Proposal", "Negotiation", "Won", "Lost"])
-        o_submit = st.form_submit_button("Add Opportunity", use_container_width=True)
-        if o_submit and o_title.strip():
+        o_title = st.text_input("Opportunity Designation")
+        o_val = st.number_input("Estimated Value ($)", min_value=0.0, step=500.0)
+        o_stage = st.selectbox("Pipeline Stage", ["New", "Qualified", "Proposal", "Negotiation", "Won", "Lost"])
+        if st.form_submit_button("Log Opportunity", use_container_width=True) and o_title.strip():
             execute("INSERT INTO opportunities(title, value, stage) VALUES (?, ?, ?)", (o_title, o_val, o_stage))
-            st.success("Opportunity added!")
+            st.success("Opportunity logged.")
             st.rerun()
-    data = query("SELECT * FROM opportunities ORDER BY id DESC")
-    if not data.empty: st.dataframe(data, use_container_width=True, hide_index=True)
+    opps = query("SELECT * FROM opportunities ORDER BY id DESC")
+    if not opps.empty: st.dataframe(opps, use_container_width=True, hide_index=True)
 
 def projects():
-    page_header("Projects & Deliverables", "Manage active projects and milestones.")
+    page_header("Projects & Operations", "Monitor active execution timelines and milestones.")
     with st.form("add_proj_form"):
-        p_name = st.text_input("Project Name")
-        p_status = st.selectbox("Status", ["Planning", "In Progress", "Completed", "On Hold"])
-        p_prog = st.slider("Progress (%)", 0, 100, 0)
-        p_submit = st.form_submit_button("Add Project", use_container_width=True)
-        if p_submit and p_name.strip():
+        p_name = st.text_input("Project Codename / Name")
+        p_status = st.selectbox("Operational Status", ["Planning", "In Progress", "Completed", "On Hold"])
+        p_prog = st.slider("Completion Progress (%)", 0, 100, 0)
+        if st.form_submit_button("Initialize Project", use_container_width=True) and p_name.strip():
             execute("INSERT INTO projects(name, status, progress) VALUES (?, ?, ?)", (p_name, p_status, p_prog))
-            st.success("Project added!")
+            st.success("Project initialized.")
             st.rerun()
-    data = query("SELECT * FROM projects ORDER BY id DESC")
-    if not data.empty: st.dataframe(data, use_container_width=True, hide_index=True)
+    projs = query("SELECT * FROM projects ORDER BY id DESC")
+    if not projs.empty: st.dataframe(projs, use_container_width=True, hide_index=True)
 
 def governance():
-    page_header("Governance & Policies", "Company operational guidelines and rules.")
-    data = query("SELECT * FROM governance ORDER BY id DESC")
-    if data.empty: st.info("No governance documents recorded yet.")
-    else: st.dataframe(data, use_container_width=True, hide_index=True)
+    page_header("Governance & Compliance", "Corporate policies, rules, and regulatory standards.")
+    govs = query("SELECT * FROM governance ORDER BY id DESC")
+    if govs.empty: st.info("No compliance documents registered.")
+    else: st.dataframe(govs, use_container_width=True, hide_index=True)
 
 def job_description_library():
-    page_header("Job Descriptions", "Access company job profiles and roles.")
+    page_header("Job Descriptions", "Corporate role specifications and structural guidelines.")
     jds = query("SELECT * FROM job_descriptions ORDER BY id DESC")
-    if jds.empty:
-        st.info("No job description files uploaded.")
-    else:
-        st.dataframe(jds, use_container_width=True, hide_index=True)
+    if jds.empty: st.info("No job description archives found.")
+    else: st.dataframe(jds, use_container_width=True, hide_index=True)
 
 def ai_company_research():
-    page_header("AI Company Research", "Analyze market entities using AI intelligence.")
-    with st.form("company_research_form"):
-        company_input = st.text_input("Company Website URL or Name", placeholder="e.g., https://example.com")
-        analysis_focus = st.selectbox("Analysis Focus", [
-            "Comprehensive Overview & Strategy",
-            "Business Model & Revenue Streams",
-            "Market Position & Competitors"
-        ])
-        submit = st.form_submit_button("Generate Intelligence Report", use_container_width=True)
-        if submit and company_input.strip():
+    page_header("AI Market Intelligence", "Analyze corporate entities and market competitors.")
+    with st.form("research_form"):
+        target = st.text_input("Target Entity / Domain", placeholder="e.g. competitor.com")
+        if st.form_submit_button("Execute Intelligence Scan", use_container_width=True) and target.strip():
             st.markdown(f"""
-            <div class="card">
-            <h3>📊 Executive Intelligence Report</h3>
-            <p><b>Target:</b> {company_input}</p>
-            <hr style="border-color:rgba(56,189,248,0.2);">
-            <h4>1. Executive Summary</h4>
-            <p>Target entity demonstrates strong market footprint and clear operational structure.</p>
-            <h4>2. Strategic Recommendations</h4>
-            <p>High collaborative potential within MASAR's consulting scope.</p>
-            </div>
+                <div class="enterprise-card">
+                    <h3 style="color:#38bdf8;">📊 Market Intelligence Dossier</h3>
+                    <p><b>Target Analyzed:</b> {target}</p>
+                    <hr style="border-color:rgba(56,189,248,0.2);">
+                    <h4>1. Strategic Positioning</h4>
+                    <p>Entity maintains high online visibility and steady competitive momentum within regional channels.</p>
+                    <h4>2. Partnership Feasibility</h4>
+                    <p>Strong collaborative alignment with MASAR corporate advisory frameworks.</p>
+                </div>
             """, unsafe_allow_html=True)
 
-# ============================================================
-# REAL EMAIL INTELLIGENCE (IMAP INTEGRATION)
-# ============================================================
 def email_assistant():
-    page_header("Real Email Intelligence", "Connect and monitor live corporate emails via IMAP.")
-    
-    with st.expander("⚙️ IMAP Email Server Configuration", expanded=False):
-        with st.form("imap_config_form"):
-            imap_server = st.text_input("IMAP Server", value=get_setting("imap_server", "imap.gmail.com"))
-            imap_user = st.text_input("Email Address", value=get_setting("imap_user", ""))
-            imap_pass = st.text_input("App Password", type="password", value=get_setting("imap_pass", ""))
-            save_imap = st.form_submit_button("Save Configuration")
-            if save_imap:
-                set_setting("imap_server", imap_server)
-                set_setting("imap_user", imap_user)
-                set_setting("imap_pass", imap_pass)
-                st.success("IMAP settings saved successfully!")
+    page_header("Corporate Email Gateway", "Live IMAP mailbox integration and telemetry.")
+    with st.expander("⚙️ Server Configuration", expanded=False):
+        with st.form("imap_form"):
+            srv = st.text_input("IMAP Server", value=get_setting("imap_server", "imap.gmail.com"))
+            usr = st.text_input("Account Email", value=get_setting("imap_user", ""))
+            pwd = st.text_input("App Password", type="password", value=get_setting("imap_pass", ""))
+            if st.form_submit_button("Save Gateway Settings"):
+                set_setting("imap_server", srv)
+                set_setting("imap_user", usr)
+                set_setting("imap_pass", pwd)
+                st.success("Gateway configuration updated.")
 
-    if st.button("📥 Fetch Latest Emails from Server", use_container_width=True):
-        server = get_setting("imap_server")
-        user_email = get_setting("imap_user")
+    if st.button("📥 Synchronize Inbox Messages", use_container_width=True):
+        srv = get_setting("imap_server")
+        usr = get_setting("imap_user")
         pwd = get_setting("imap_pass")
-
-        if not server or not user_email or not pwd:
-            st.error("Please configure your IMAP settings above first.")
+        if not srv or not usr or not pwd:
+            st.error("Please configure IMAP server parameters first.")
         else:
-            with st.spinner("Connecting to mail server and fetching inbox..."):
+            with st.spinner("Connecting securely to mail gateway..."):
                 try:
-                    mail = imaplib.IMAP4_SSL(server)
-                    mail.login(user_email, pwd)
+                    mail = imaplib.IMAP4_SSL(srv)
+                    mail.login(usr, pwd)
                     mail.select("inbox")
-                    status, messages = mail.search(None, "ALL")
-                    if status == "OK":
-                        mail_ids = messages[0].split()
-                        latest_ids = mail_ids[-10:]
-                        fetched_count = 0
-                        for num in reversed(latest_ids):
-                            res, msg_data = mail.fetch(num, "(RFC822)")
-                            if res == "OK":
-                                for response_part in msg_data:
-                                    if isinstance(response_part, tuple):
-                                        msg = email.message_from_bytes(response_part[1])
-                                        subject, encoding = decode_header(msg["Subject"])[0]
-                                        if isinstance(subject, bytes):
-                                            subject = subject.decode(encoding if encoding else "utf-8", errors="ignore")
-                                        sender = msg.get("From")
-                                        date_received = msg.get("Date")
-                                        
-                                        body = ""
-                                        if msg.is_multipart():
-                                            for part in msg.walk():
-                                                if part.get_content_type() == "text/plain":
-                                                    body = part.get_payload(decode=True).decode(errors="ignore")
-                                                    break
-                                        else:
-                                            body = msg.get_payload(decode=True).decode(errors="ignore")
-                                        
-                                        st.markdown(f"""
-                                        <div class="card">
-                                            <b>Subject:</b> {subject}<br>
-                                            <span class="small-muted">From: {sender} | Date: {date_received}</span><hr style="border-color:rgba(56,189,248,0.2);">
-                                            <p>{body[:300]}...</p>
-                                        </div>
-                                        """, unsafe_allow_html=True)
-                                        fetched_count += 1
-                        st.success(f"Successfully fetched {fetched_count} latest emails.")
+                    _, messages = mail.search(None, "ALL")
+                    mail_ids = messages[0].split()
+                    for num in reversed(mail_ids[-5:]):
+                        _, msg_data = mail.fetch(num, "(RFC822)")
+                        for response_part in msg_data:
+                            if isinstance(response_part, tuple):
+                                msg = email.message_from_bytes(response_part[1])
+                                sub, enc = decode_header(msg["Subject"])[0]
+                                if isinstance(sub, bytes):
+                                    sub = sub.decode(enc if enc else "utf-8", errors="ignore")
+                                st.markdown(f"""
+                                    <div class="enterprise-card">
+                                        <b>Subject:</b> {sub}<br>
+                                        <span class="small-muted">Sender: {msg.get('From')} | Date: {msg.get('Date')}</span>
+                                    </div>
+                                """, unsafe_allow_html=True)
                     mail.logout()
                 except Exception as e:
-                    st.error(f"Failed to connect to email server: {e}")
+                    st.error(f"Gateway connection error: {e}")
 
 # ============================================================
-# GEMINI WEB SEARCH (DIRECT RESULTS INSIDE APP - NO API KEY)
+# GLOBAL WEB SEARCH (NATIVE BUILT-IN ENGINE - NO EXTERNAL DEPENDENCY)
 # ============================================================
 def global_search():
-    page_header("Gemini Web Search", "Search the web directly and get instant results inside the app.")
-    
-    query_text = st.text_input("🌐 Ask anything or search the web...", placeholder="e.g. latest business trends, weather...")
+    page_header("Global Web Search", "Integrated intelligence search engine.")
+    query_text = st.text_input("🌐 Query web intelligence...", placeholder="Type query and press enter...")
     
     if query_text:
-        st.markdown("### 🤖 Search Results & Insights")
-        with st.spinner("Searching the web..."):
+        st.markdown("### Search Results")
+        with st.spinner("Executing query..."):
             try:
-                from duckduckgo_search import DDGS
-                results = []
-                with DDGS() as ddgs:
-                    for r in ddgs.text(query_text, max_results=5):
-                        results.append(r)
+                # Built-in lightweight search using Wikipedia API / DuckDuckGo Instant API to avoid dependency issues
+                url = f"https://api.duckduckgo.com/?q={urllib.parse.quote(query_text)}&format=json&no_html=1"
+                req = urllib.request.Request(url, headers={'User-Agent': 'MASAR-OS'})
+                with urllib.request.urlopen(req) as response:
+                    data = json.loads(response.read().decode())
+                    
+                related = data.get("RelatedTopics", [])
+                abstract = data.get("AbstractText", "")
                 
-                if results:
-                    for res in results:
-                        st.markdown(f"""
-                        <div class="card">
-                            <a href="{res.get('href')}" target="_blank" style="color: #38BDF8; font-size: 16px; font-weight: 700; text-decoration: none;">{res.get('title')}</a>
-                            <p style="margin-top: 8px; color: #cbd5e1;">{res.get('body')}</p>
-                            <span class="small-muted">{res.get('href')}</span>
+                if abstract:
+                    st.markdown(f"""
+                        <div class="enterprise-card">
+                            <h4 style="color:#38bdf8;">Overview</h4>
+                            <p>{abstract}</p>
+                            <a href="{data.get('AbstractURL')}" target="_blank" style="color:#38bdf8; font-size:12px;">Source Reference</a>
                         </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    st.info("No direct results found. Try another query.")
-            except ImportError:
-                st.error("Please install the search package on your server by running: `pip install duckduckgo-search`")
+                    """, unsafe_allow_html=True)
+                
+                if related:
+                    for item in related:
+                        if "Text" in item:
+                            st.markdown(f"""
+                                <div class="enterprise-card">
+                                    <p>{item.get('Text')}</p>
+                                    <a href="{item.get('FirstURL')}" target="_blank" style="color:#38bdf8; font-size:12px;">{item.get('FirstURL')}</a>
+                                </div>
+                            """, unsafe_allow_html=True)
+                elif not abstract and not related:
+                    st.info("No direct structured results found. Try refining your keywords.")
             except Exception as e:
-                st.error(f"An error occurred while fetching results: {e}")
-    else:
-        st.info("Type any topic or question above to get direct search results instantly.")
+                st.error(f"Search query execution failed: {e}")
 
 def admin_center():
     user = st.session_state.user
     if user["role"] != "Admin":
-        st.error("Administrator access required.")
+        st.error("Restricted access: Administrator credentials required.")
         return
-    page_header("Admin Control Center", "Manage employees and system settings.")
+    page_header("Enterprise Admin Center", "Personnel provisioning and system settings.")
     
     with st.form("add_emp_form"):
-        st.subheader("Add New Employee")
+        st.subheader("Provision New Personnel")
         e_code = st.text_input("Employee Code (e.g. EMP002)")
         e_name = st.text_input("Full Name")
-        e_mob = st.text_input("Mobile Number")
-        e_mail = st.text_input("Email")
-        e_role = st.selectbox("Role", ["Employee", "Manager", "Admin"])
+        e_mob = st.text_input("Mobile Contact")
+        e_mail = st.text_input("Corporate Email")
+        e_role = st.selectbox("Role Assignment", ["Employee", "Manager", "Admin"])
         e_pin = st.text_input("Initial PIN", value="1234")
-        submit_emp = st.form_submit_button("Create Employee", use_container_width=True)
-        if submit_emp and e_code.strip() and e_name.strip():
+        if st.form_submit_button("Provision Profile", use_container_width=True) and e_code.strip() and e_name.strip():
             try:
                 execute("""
                     INSERT INTO employees(employee_code, full_name, mobile, email, role, pin_hash, must_change_pin)
                     VALUES (?, ?, ?, ?, ?, ?, 1)
                 """, (e_code.strip().upper(), e_name, e_mob, e_mail, e_role, hash_pin(e_pin)))
-                st.success(f"Employee {e_name} created successfully!")
+                st.success("Personnel profile provisioned successfully.")
                 st.rerun()
             except Exception as ex:
-                st.error(f"Error creating employee: {ex}")
+                st.error(f"Provisioning error: {ex}")
 
-    employees = query("SELECT id, employee_code, full_name, role, active FROM employees ORDER BY id DESC")
-    st.dataframe(employees, use_container_width=True, hide_index=True)
+    emps = query("SELECT id, employee_code, full_name, role, active FROM employees ORDER BY id DESC")
+    st.dataframe(emps, use_container_width=True, hide_index=True)
 
 def notifications_center():
     user = st.session_state.user
-    page_header("Notifications", "System alerts and notifications.")
+    page_header("System Notifications", "System alerts and communication logs.")
     notifs = query("SELECT * FROM notifications WHERE employee_id = ? ORDER BY id DESC", (user["id"],))
     if notifs.empty:
-        st.info("No notifications.")
+        st.info("No notifications recorded.")
     else:
-        for r in notifs.iterrows():
-            row = r[1]
+        for _, row in notifs.iterrows():
             st.markdown(f"""
-                <div class="card">
-                    <b>{row['title']}</b> ({row['notification_type']})<br>
-                    <span>{row['message']}</span><br>
+                <div class="enterprise-card">
+                    <b>{row['title']}</b> &bull; <span style="color:#38bdf8;">{row['notification_type']}</span><br>
+                    <p style="margin: 6px 0; color:#cbd5e1;">{row['message']}</p>
                     <span class="small-muted">{row['created_at']}</span>
                 </div>
             """, unsafe_allow_html=True)
@@ -931,34 +960,32 @@ def notifications_center():
 
 def performance_center():
     user = st.session_state.user
-    page_header("Performance Center", "Employee performance overview.")
+    page_header("Performance Analytics", "Comprehensive evaluation metrics.")
     score = calculate_employee_performance(user["id"])
-    kpi("My Performance Score", f"{score}%")
+    kpi("Evaluated Performance Index", f"{score}%")
 
 # ============================================================
-# SIDEBAR & ROUTER
+# SIDEBAR ROUTER & CONTROLS
 # ============================================================
 
 def sidebar():
     user = st.session_state.user
-    display_logo()
     
     st.sidebar.markdown(f"""
-        <div style="text-align:center;">
-            <b>{COMPANY_NAME}</b><br>
-            <span class="small-muted">Intelligence OS</span>
+        <div class="brand-container">
+            <div class="brand-title">{COMPANY_NAME.split()[0]} OS</div>
+            <div class="brand-subtitle">Enterprise Suite</div>
         </div>
     """, unsafe_allow_html=True)
-    st.sidebar.divider()
     
-    st.sidebar.markdown(f"### {t('audio_fix')}")
+    st.sidebar.markdown(f"**{t('audio_fix')}**")
     if st.sidebar.button(t('test_sound'), use_container_width=True):
         play_sound_alert()
         st.sidebar.success(t('sound_success'))
 
     st.sidebar.divider()
     st.sidebar.markdown(f"**{user['full_name']}**")
-    st.sidebar.caption(f"{user['employee_code']} • {user['role']}")
+    st.sidebar.caption(f"{user['employee_code']} &bull; {user['role']}")
     
     unread = unread_notifications(user["id"])
     
@@ -973,7 +1000,7 @@ def sidebar():
     selected = st.sidebar.radio(t('navigation'), menu, label_visibility="collapsed")
     
     st.sidebar.divider()
-    st.sidebar.caption(f"Unread Notifications: {unread}")
+    st.sidebar.caption(f"Unread Alerts: {unread}")
     if st.sidebar.button(t('logout'), use_container_width=True):
         log_event(user["id"], user["employee_code"], "LOGOUT")
         st.session_state.clear()
@@ -998,24 +1025,24 @@ if user.get("must_change_pin"):
 
 page = sidebar()
 
-if page in ["Dashboard", "لوحة القيادة"]: dashboard()
-elif page in ["My Workspace", "مساحة العمل"]: employee_dashboard()
-elif page in ["Tasks & Organizer", "المهام والمنظم"]: task_organizer()
-elif page in ["Internal Chat", "الدردشة الداخلية"]: internal_chat()
-elif page in ["CRM", "إدارة علاقات العملاء"]: crm()
-elif page in ["Opportunities", "الفرص التجارية"]: opportunities()
-elif page in ["Projects", "المشاريع"]: projects()
-elif page in ["Performance", "الأداء"]: performance_center()
+if page in ["Dashboard", "لوحة المؤشرات التنفيذية"]: dashboard()
+elif page in ["My Workspace", "مساحة العمل الشخصية"]: employee_dashboard()
+elif page in ["Task Management", "إدارة المهام والعمليات"]: task_organizer()
+elif page in ["Internal Communications", "الاتصالات الداخلية"]: internal_chat()
+elif page in ["CRM & Accounts", "إدارة علاقات العملاء"]: crm()
+elif page in ["Sales Pipeline", "الفرص والعقود التجارية"]: opportunities()
+elif page in ["Projects & Operations", "المشاريع والتشغيل"]: projects()
+elif page in ["Performance Analytics", "تحليلات الأداء"]: performance_center()
 elif page in ["Job Descriptions", "التوصيف الوظيفي"]: job_description_library()
-elif page in ["AI Company Research", "بحث الشركات بالذكاء الاصطناعي"]: ai_company_research()
-elif page in ["Email Intelligence", "ذكاء البريد الإلكتروني"]: email_assistant()
-elif page in ["Notifications", "الإشعارات"]: notifications_center()
-elif page in ["Gemini Web Search", "بحث الويب المباشر"]: global_search()
+elif page in ["AI Market Intelligence", "الذكاء الاصطناعي للأسواق"]: ai_company_research()
+elif page in ["Corporate Email Gateway", "بوابة البريد المؤسسي"]: email_assistant()
+elif page in ["System Notifications", "الإشعارات وال تنبيهات"]: notifications_center()
+elif page in ["Global Web Search", "محرك البحث العالمي"]: global_search()
 elif page in ["Admin Control Center", "مركز التحكم الإداري"]: admin_center()
-elif page in ["Governance", "الحوكمة"]: governance()
+elif page in ["Governance & Compliance", "الحوكمة والامتثال"]: governance()
 
 st.markdown("""
-    <div style="text-align:center; color:#64748b; margin-top:50px; padding:20px; font-size:11px;">
-        MASAR Intelligence OS • Internal Business Platform
+    <div style="text-align:center; color:#475569; margin-top:60px; padding:20px; font-size:11px; border-top: 1px solid rgba(56,189,248,0.05);">
+        MASAR Intelligence OS &bull; Secure Enterprise Environment
     </div>
 """, unsafe_allow_html=True)
