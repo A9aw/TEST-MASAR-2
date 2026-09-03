@@ -1,6 +1,6 @@
 # ============================================================
 # MASAR INTELLIGENCE OS
-# V4.3 - STABLE SINGLE FILE EDITION (HTML RENDERING FIX)
+# V4.4 - STABLE SINGLE FILE EDITION (AUDIO ALERTS & TASKS ENGINE)
 # ============================================================
 
 import streamlit as st
@@ -123,6 +123,7 @@ def init_db():
             priority TEXT DEFAULT 'Medium',
             status TEXT DEFAULT 'Pending',
             due_date TEXT,
+            reminder_time TEXT,
             completed_at TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
@@ -253,6 +254,7 @@ def init_db():
     conn.close()
 
     add_column_if_missing("employees", "must_change_pin", "INTEGER DEFAULT 0")
+    add_column_if_missing("tasks", "reminder_time", "TEXT")
 
     admin = query_one("SELECT id FROM employees WHERE employee_code = ?", ("ADMIN",))
     if not admin:
@@ -272,7 +274,7 @@ def init_db():
         ))
 
 # ============================================================
-# SECURITY
+# SECURITY & AUDIO NOTIFICATIONS
 # ============================================================
 
 def hash_pin(pin):
@@ -285,8 +287,30 @@ def generate_temp_pin(length=6):
     chars = string.digits
     return "".join(secrets.choice(chars) for _ in range(length))
 
+def play_sound_alert():
+    """توليد تنبيه صوتي حي داخل المتصفح باستخدام JavaScript Web Audio API"""
+    sound_script = """
+    <script>
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5 note
+        gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.25);
+    } catch(e) {
+        console.log("Audio not supported or blocked");
+    }
+    </script>
+    """
+    st.markdown(sound_script, unsafe_allow_html=True)
+
 # ============================================================
-# SETTINGS
+# SETTINGS & LOGS
 # ============================================================
 
 def get_setting(key, default=None):
@@ -424,11 +448,6 @@ def kpi(label, value):
         </div>
     """, unsafe_allow_html=True)
 
-def safe_text(value):
-    if value is None:
-        return ""
-    return str(value)
-
 def calculate_employee_performance(employee_id):
     total_row = query_one("SELECT COUNT(*) AS total FROM tasks WHERE assigned_to = ?", (employee_id,))
     completed_row = query_one("SELECT COUNT(*) AS total FROM tasks WHERE assigned_to = ? AND status = 'Completed'", (employee_id,))
@@ -477,6 +496,8 @@ def login_page():
                     st.session_state.user = dict(employee)
                     st.session_state.logged_in = True
                     log_event(employee["id"], employee["employee_code"], "LOGIN_SUCCESS")
+                    create_notification(employee["id"], "تسجيل دخول ناجح", "مرحباً بك في نظام مسار الذكي", "Security")
+                    play_sound_alert()
                     st.rerun()
                 else:
                     if employee:
@@ -497,6 +518,7 @@ def login_page():
                     temp_pin = generate_temp_pin()
                     execute("UPDATE employees SET pin_hash = ?, must_change_pin = 1 WHERE id = ?", (hash_pin(temp_pin), employee["id"]))
                     create_notification(employee["id"], "Temporary PIN", "Your PIN has been reset.", "Security")
+                    play_sound_alert()
                     st.success("Temporary PIN generated.")
                     st.warning(f"Temporary PIN: {temp_pin}")
                 else:
@@ -564,12 +586,62 @@ def employee_dashboard():
 
 def task_organizer():
     user = st.session_state.user
-    page_header("Task Organizer", "Manage employee tasks.")
+    page_header("Task Organizer & Creator", "إدارة وتعيين المهام الشخصية ومنبهات التذكير.")
+
+    # نموذج إضافة مهمة جديدة لأي موظف
+    with st.expander("➕ إضافة مهمة جديدة وتعيين منبه", expanded=True):
+        with st.markdown('<div class="card">', unsafe_allow_html=True):
+            with st.form("new_task_form"):
+                t_title = st.text_input("عنوان المهمة")
+                t_desc = st.text_area("تفاصيل المهمة")
+                
+                # جلب الموظفين لتعيين المهمة لهم
+                emps = query("SELECT id, full_name FROM employees WHERE active = 1")
+                emp_options = {row["full_name"]: row["id"] for row in emps}
+                assigned_name = st.selectbox("تعيين إلى موظف", list(emp_options.keys()))
+                
+                col1, col2, col3 = st.columns(3)
+                with col1: t_priority = st.selectbox("الأولوية", ["Low", "Medium", "High", "Urgent"])
+                with col2: t_due = st.date_input("تاريخ الاستحقاق", value=date.today())
+                with col3: t_reminder = st.time_input("منبه التنبيه الصوتي (الوقت)")
+                
+                submit_task = st.form_submit_button("حفظ وإضافة المهمة", use_container_width=True)
+                if submit_task:
+                    if not t_title.strip():
+                        st.error("يرجى إدخال عنوان المهمة.")
+                    else:
+                        emp_id = emp_options[assigned_name]
+                        execute("""
+                            INSERT INTO tasks (title, description, assigned_to, created_by, priority, status, due_date, reminder_time)
+                            VALUES (?, ?, ?, ?, ?, 'Pending', ?, ?)
+                        """, (t_title, t_desc, emp_id, user["id"], t_priority, str(t_due), str(t_reminder)))
+                        
+                        create_notification(emp_id, "مهمة جديدة مضافة", f"تم تكليفك بمهمة جديدة: {t_title}", "Task")
+                        play_sound_alert()
+                        st.success("تم إضافة المهمة بنجاح وتفعيل المنبه والتنبيه الصوتي!")
+                        st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown("### المهام الخاصة بك والمنبهات المفعلة")
     tasks = query("SELECT * FROM tasks WHERE assigned_to = ? ORDER BY due_date", (user["id"],))
     if tasks.empty:
-        st.info("No tasks assigned.")
+        st.info("لا توجد مهام مسندة إليك حالياً.")
     else:
-        st.dataframe(tasks[["title", "priority", "status", "due_date"]], use_container_width=True, hide_index=True)
+        for index, row in tasks.iterrows():
+            with st.container():
+                cols = st.columns([3, 1, 1, 1, 1])
+                cols[0].markdown(f"**{row['title']}**<br><span class='small-muted'>{row['description']}</span>", unsafe_allow_html=True)
+                cols[1].markdown(f"الأولوية: `{row['priority']}`")
+                cols[2].markdown(f"الاستحقاق: `{row['due_date']}`")
+                cols[3].markdown(f"⏰ المنبه: `{row['reminder_time'] or 'غير محدد'}`")
+                
+                status_val = cols[4].selectbox("الحالة", ["Pending", "In Progress", "Completed"], index=["Pending", "In Progress", "Completed"].index(row["status"]), key=f"status_{row['id']}")
+                if status_val != row["status"]:
+                    execute("UPDATE tasks SET status = ? WHERE id = ?", (status_val, row["id"]))
+                    create_notification(user["id"], "تحديث حالة مهمة", f"تم تحديث حالة المهمة {row['title']} إلى {status_val}", "Task")
+                    play_sound_alert()
+                    st.rerun()
+                st.divider()
 
 def internal_chat():
     user = st.session_state.user
@@ -626,7 +698,7 @@ def ai_company_research():
                 st.error("Please enter a valid website link or company name.")
             else:
                 with st.spinner("Analyzing company profile and compiling report..."):
-                    # استخدام Markdown النظيف المباشر لتجنب ظهور أكواد HTML
+                    play_sound_alert()
                     st.markdown(f"""
 <div class="card">
 <h3>📊 Executive Intelligence Report</h3>
@@ -661,7 +733,20 @@ def admin_center():
 def notifications_center():
     user = st.session_state.user
     page_header("Notifications", "System alerts.")
-    st.info("No new notifications.")
+    notifs = query("SELECT * FROM notifications WHERE employee_id = ? ORDER BY id DESC", (user["id"],))
+    if notifs.empty:
+        st.info("No new notifications.")
+    else:
+        for r in notifs.iterrows():
+            row = r[1]
+            st.markdown(f"""
+                <div class="card">
+                    <b>{row['title']}</b> ({row['notification_type']})<br>
+                    <span>{row['message']}</span><br>
+                    <span class="small-muted">{row['created_at']}</span>
+                </div>
+            """, unsafe_allow_html=True)
+        execute("UPDATE notifications SET is_read = 1 WHERE employee_id = ?", (user["id"],))
 
 def performance_center():
     user = st.session_state.user
