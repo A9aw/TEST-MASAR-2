@@ -1,6 +1,6 @@
 # ============================================================
 # MASAR INTELLIGENCE OS
-# V4.8 - STABLE SINGLE FILE EDITION (IPAD AUDIO UNLOCK FIX)
+# V4.9 - FULL ENGLISH + ARABIC TOGGLE + TASK EDIT/DELETE + IPAD AUDIO
 # ============================================================
 
 import streamlit as st
@@ -30,6 +30,70 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Initialize Language Session State
+if "lang" not in st.session_state:
+    st.session_state.lang = "English"
+
+# Dictionary for translations
+TRANSLATIONS = {
+    "English": {
+        "dashboard": "Dashboard",
+        "my_workspace": "My Workspace",
+        "tasks": "Tasks & Organizer",
+        "internal_chat": "Internal Chat",
+        "crm": "CRM",
+        "opportunities": "Opportunities",
+        "projects": "Projects",
+        "performance": "Performance",
+        "job_descriptions": "Job Descriptions",
+        "ai_research": "AI Company Research",
+        "email_intelligence": "Email Intelligence",
+        "notifications": "Notifications",
+        "search": "Search",
+        "admin_center": "Admin Control Center",
+        "governance": "Governance",
+        "logout": "Logout",
+        "audio_fix": "🔊 iPad Audio Fix",
+        "test_sound": "Tap to Unlock Audio",
+        "sound_success": "Audio unlocked successfully!",
+        "welcome": "Welcome back",
+        "employees": "Employees",
+        "companies": "Companies",
+        "open_opps": "Open Opportunities",
+        "navigation": "Navigation"
+    },
+    "العربية": {
+        "dashboard": "لوحة القيادة",
+        "my_workspace": "مساحة العمل",
+        "tasks": "المهام والمنظم",
+        "internal_chat": "الدردشة الداخلية",
+        "crm": "إدارة علاقات العملاء",
+        "opportunities": "الفرص التجارية",
+        "projects": "المشاريع",
+        "performance": "الأداء",
+        "job_descriptions": "التوصيف الوظيفي",
+        "ai_research": "بحث الشركات بالذكاء الاصطناعي",
+        "email_intelligence": "ذكاء البريد الإلكتروني",
+        "notifications": "الإشعارات",
+        "search": "البحث",
+        "admin_center": "مركز التحكم الإداري",
+        "governance": "الحوكمة",
+        "logout": "تسجيل الخروج",
+        "audio_fix": "🔊 تفعيل صوت الأيباد",
+        "test_sound": "اضغط لفتح حظر الصوت",
+        "sound_success": "تم تفعيل الصوت بنجاح!",
+        "welcome": "مرحباً بك",
+        "employees": "الموظفين",
+        "companies": "الشركات",
+        "open_opps": "الفرص المفتوحة",
+        "navigation": "التنقل"
+    }
+}
+
+def t(key):
+    lang = st.session_state.lang
+    return TRANSLATIONS.get(lang, TRANSLATIONS["English"]).get(key, key)
 
 # ============================================================
 # DATABASE
@@ -274,7 +338,7 @@ def init_db():
         ))
 
 # ============================================================
-# SECURITY & AUDIO NOTIFICATIONS (IPAD COMPATIBLE)
+# SECURITY & AUDIO NOTIFICATIONS (IPAD HTML5 AUDIO FIX)
 # ============================================================
 
 def hash_pin(pin):
@@ -288,18 +352,22 @@ def generate_temp_pin(length=6):
     return "".join(secrets.choice(chars) for _ in range(length))
 
 def play_sound_alert():
-    """تشغيل صوت تنبيه متوافق تماماً مع الأيباد عبر عنصر Audio مباشر"""
-    sound_script = """
+    """تشغيل صوت عبر عنصر HTML Audio صريح ليتجاوز حظر الأيباد والمتصفحات"""
+    sound_html = """
+    <audio id="masar_audio_alert" autoplay>
+        <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mp3">
+    </audio>
     <script>
-    try {
-        const audio = new Audio("data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU2LjQwLjEwMQAAAAAAAAAAAAAA//OEAAAAANIAAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NExAAAAgQAAAAExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
-        audio.play().catch(e => console.log("Audio play blocked by browser policy"));
-    } catch(e) {
-        console.log("Audio error", e);
+    var aud = document.getElementById("masar_audio_alert");
+    if(aud) {
+        aud.volume = 1.0;
+        aud.play().catch(function(error) {
+            console.log("Audio autoplay prevented: ", error);
+        });
     }
     </script>
     """
-    st.markdown(sound_script, unsafe_allow_html=True)
+    st.markdown(sound_html, unsafe_allow_html=True)
 
 # ============================================================
 # SETTINGS & LOGS
@@ -424,6 +492,21 @@ h1, h2, h3 {
 """, unsafe_allow_html=True)
 
 # ============================================================
+# TOP HEADER BAR FOR LANGUAGE TOGGLE
+# ============================================================
+
+def top_header_bar():
+    c1, c2 = st.columns([8, 2])
+    with c1:
+        st.markdown(f"<span style='color:#38BDF8; font-weight:700;'>{COMPANY_NAME}</span>", unsafe_allow_html=True)
+    with c2:
+        selected_lang = st.selectbox("Language / اللغة", ["English", "العربية"], index=0 if st.session_state.lang == "English" else 1, label_visibility="collapsed")
+        if selected_lang != st.session_state.lang:
+            st.session_state.lang = selected_lang
+            st.rerun()
+    st.divider()
+
+# ============================================================
 # UI HELPERS
 # ============================================================
 
@@ -468,6 +551,7 @@ def calculate_employee_performance(employee_id):
 # ============================================================
 
 def login_page():
+    top_header_bar()
     st.markdown("""
         <div class="login-box">
             <h1 style="text-align:center;">MASAR</h1>
@@ -488,7 +572,7 @@ def login_page():
                     st.session_state.user = dict(employee)
                     st.session_state.logged_in = True
                     log_event(employee["id"], employee["employee_code"], "LOGIN_SUCCESS")
-                    create_notification(employee["id"], "تسجيل دخول ناجح", "مرحباً بك في نظام مسار الذكي", "Security")
+                    create_notification(employee["id"], "Login Success", "Welcome to MASAR OS", "Security")
                     play_sound_alert()
                     st.rerun()
                 else:
@@ -517,6 +601,7 @@ def login_page():
                     st.error("Employee code/mobile combination not found.")
 
 def force_change_pin():
+    top_header_bar()
     user = st.session_state.user
     page_header("Security", "You must change your temporary PIN before continuing.")
     with st.form("change_pin"):
@@ -541,7 +626,7 @@ def force_change_pin():
             st.rerun()
 
 # ============================================================
-# MODULES
+# MODULES (FULL ENGLISH)
 # ============================================================
 
 def dashboard():
@@ -569,7 +654,7 @@ def dashboard():
 def employee_dashboard():
     user = st.session_state.user
     performance = calculate_employee_performance(user["id"])
-    page_header("My Workspace", "Your tasks and performance.")
+    page_header("My Workspace", "Your tasks and performance overview.")
     c1, c2, c3 = st.columns(3)
     with c1: kpi("Performance", f"{performance}%")
     my_tasks = query("SELECT * FROM tasks WHERE assigned_to = ? ORDER BY due_date", (user["id"],))
@@ -578,29 +663,29 @@ def employee_dashboard():
 
 def task_organizer():
     user = st.session_state.user
-    page_header("Task Organizer & Creator", "إدارة وتعيين المهام، وتحديد المواعيد ومنبهات التذكير الصوتي والرسائل.")
+    page_header("Task Organizer & Creator", "Manage, assign, edit, and delete tasks with instant audio alerts.")
 
-    with st.expander("➕ إضافة مهمة جديدة وتعيين موعد ومنبه صوتي", expanded=True):
+    with st.expander("➕ Create New Task", expanded=True):
         with st.markdown('<div class="card">', unsafe_allow_html=True):
             with st.form("new_task_form"):
-                t_title = st.text_input("عنوان المهمة")
-                t_desc = st.text_area("تفاصيل المهمة")
+                t_title = st.text_input("Task Title")
+                t_desc = st.text_area("Task Description")
                 
                 emps = query("SELECT id, full_name, email FROM employees WHERE active = 1")
                 emp_options = {row["full_name"]: row["id"] for _, row in emps.iterrows()} if not emps.empty else {}
-                assigned_name = st.selectbox("تعيين إلى موظف", list(emp_options.keys()) if emp_options else ["لا توجد موظفين"])
+                assigned_name = st.selectbox("Assign To Employee", list(emp_options.keys()) if emp_options else ["No Employees"])
                 
                 col1, col2, col3 = st.columns(3)
-                with col1: t_priority = st.selectbox("الأولوية", ["Low", "Medium", "High", "Urgent"])
-                with col2: t_due = st.date_input("تاريخ الاستحقاق", value=date.today())
-                with col3: t_reminder = st.time_input("وقت التنبيه الصوتي والإشعار")
+                with col1: t_priority = st.selectbox("Priority", ["Low", "Medium", "High", "Urgent"])
+                with col2: t_due = st.date_input("Due Date", value=date.today())
+                with col3: t_reminder = st.time_input("Reminder Time")
                 
-                submit_task = st.form_submit_button("حفظ وتفعيل التنبيه الصوتي وإرسال الإشعار", use_container_width=True)
+                submit_task = st.form_submit_button("Save Task & Trigger Alert", use_container_width=True)
                 if submit_task:
                     if not t_title.strip():
-                        st.error("يرجى إدخال عنوان المهمة.")
+                        st.error("Please enter a task title.")
                     elif not emp_options:
-                        st.error("لا يوجد موظفون متاحون.")
+                        st.error("No available employees.")
                     else:
                         emp_id = emp_options[assigned_name]
                         execute("""
@@ -608,44 +693,64 @@ def task_organizer():
                             VALUES (?, ?, ?, ?, ?, 'Pending', ?, ?)
                         """, (t_title, t_desc, emp_id, user["id"], t_priority, str(t_due), str(t_reminder)))
                         
-                        create_notification(emp_id, "مهمة جديدة محددة بموعد", f"المهمة: {t_title} - موعد التنبيه: {t_reminder}", "Task")
+                        create_notification(emp_id, "New Task Assigned", f"Task: {t_title}", "Task")
                         play_sound_alert()
-                        st.success("تم حفظ المهمة وتفعيل التنبيه الصوتي وإرسال الإشعار للموظف بنجاح!")
+                        st.success("Task created and audio alert triggered successfully!")
                         st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown("### المهام الخاصة بك والمنبهات المفعلة")
-    tasks = query("SELECT * FROM tasks WHERE assigned_to = ? ORDER BY due_date", (user["id"],))
+    st.markdown("### Task Management (Edit & Delete)")
+    tasks = query("SELECT * FROM tasks ORDER BY due_date DESC")
     if tasks.empty:
-        st.info("لا توجد مهام مسندة إليك حالياً.")
+        st.info("No tasks found in the system.")
     else:
         for index, row in tasks.iterrows():
             with st.container():
-                cols = st.columns([3, 1, 1, 1, 1])
-                cols[0].markdown(f"**{row['title']}**<br><span class='small-muted'>{row['description']}</span>", unsafe_allow_html=True)
-                cols[1].markdown(f"الأولوية: `{row['priority']}`")
-                cols[2].markdown(f"الاستحقاق: `{row['due_date']}`")
-                cols[3].markdown(f"⏰ المنبه: `{row['reminder_time'] or 'غير محدد'}`")
+                st.markdown(f"""
+                    <div class="card">
+                        <b>[{row['id']}] {row['title']}</b> ({row['priority']})<br>
+                        <span class='small-muted'>Desc: {row['description'] or 'N/A'} | Due: {row['due_date']} | Status: {row['status']}</span>
+                    </div>
+                """, unsafe_allow_html=True)
                 
-                status_val = cols[4].selectbox("الحالة", ["Pending", "In Progress", "Completed"], index=["Pending", "In Progress", "Completed"].index(row["status"]), key=f"status_{row['id']}")
-                if status_val != row["status"]:
-                    execute("UPDATE tasks SET status = ? WHERE id = ?", (status_val, row["id"]))
-                    create_notification(user["id"], "تحديث حالة مهمة", f"تم تحديث حالة المهمة {row['title']} إلى {status_val}", "Task")
-                    play_sound_alert()
-                    st.rerun()
+                col_e1, col_e2, col_e3 = st.columns(3)
+                with col_e1:
+                    new_status = st.selectbox("Update Status", ["Pending", "In Progress", "Completed"], index=["Pending", "In Progress", "Completed"].index(row["status"]), key=f"status_ed_{row['id']}")
+                    if new_status != row["status"]:
+                        execute("UPDATE tasks SET status = ? WHERE id = ?", (new_status, row["id"]))
+                        play_sound_alert()
+                        st.rerun()
+                
+                with col_e2:
+                    with st.expander("Edit Task"):
+                        with st.form(f"edit_task_form_{row['id']}"):
+                            ed_title = st.text_input("Title", value=row["title"], key=f"ed_t_{row['id']}")
+                            ed_desc = st.text_area("Description", value=row["description"] or "", key=f"ed_d_{row['id']}")
+                            ed_prio = st.selectbox("Priority", ["Low", "Medium", "High", "Urgent"], index=["Low", "Medium", "High", "Urgent"].index(row["priority"]), key=f"ed_p_{row['id']}")
+                            ed_submit = st.form_submit_button("Update Changes")
+                            if ed_submit:
+                                execute("UPDATE tasks SET title = ?, description = ?, priority = ? WHERE id = ?", (ed_title, ed_desc, ed_prio, row["id"]))
+                                st.success("Task updated!")
+                                st.rerun()
+
+                with col_e3:
+                    if st.button("Delete Task", key=f"del_task_{row['id']}"):
+                        execute("DELETE FROM tasks WHERE id = ?", (row["id"],))
+                        st.success("Task deleted successfully!")
+                        st.rerun()
                 st.divider()
 
 def internal_chat():
     user = st.session_state.user
-    page_header("Internal Chat", "الدردشة والرسائل الداخلية الفورية بين الموظفين.")
+    page_header("Internal Chat", "Instant internal messaging between employees.")
 
     emps = query("SELECT id, full_name, employee_code FROM employees WHERE id != ? AND active = 1", (user["id"],))
     if emps.empty:
-        st.info("لا يوجد موظفون آخرون متاحون للدردشة.")
+        st.info("No other employees available for chat.")
         return
 
     emp_dict = {f"{row['full_name']} ({row['employee_code']})": row["id"] for _, row in emps.iterrows()}
-    selected_target_name = st.selectbox("اختر الموظف لبدء المحادثة", list(emp_dict.keys()))
+    selected_target_name = st.selectbox("Select Employee to Chat", list(emp_dict.keys()))
     target_id = emp_dict[selected_target_name]
 
     st.markdown("---")
@@ -660,11 +765,11 @@ def internal_chat():
     chat_container = st.container(height=400)
     with chat_container:
         if messages.empty:
-            st.info("لا توجد رسائل سابقة في هذه المحادثة. ابدأ الإرسال الآن.")
+            st.info("No previous messages. Start the conversation now.")
         else:
             for r in messages.iterrows():
                 row = r[1]
-                sender_name = "أنت" if row["sender_id"] == user["id"] else selected_target_name.split('(')[0]
+                sender_name = "You" if row["sender_id"] == user["id"] else selected_target_name.split('(')[0]
                 align_style = "text-align: right; background: rgba(56,189,248,0.15); padding: 10px; border-radius: 10px; margin-bottom: 8px;" if row["sender_id"] == user["id"] else "text-align: left; background: rgba(30,58,138,0.3); padding: 10px; border-radius: 10px; margin-bottom: 8px;"
                 st.markdown(f"""
                     <div style="{align_style}">
@@ -674,15 +779,15 @@ def internal_chat():
                 """, unsafe_allow_html=True)
 
     with st.form("chat_form", clear_on_submit=True):
-        msg_text = st.text_input("اكتب رسالتك هنا...")
-        send_btn = st.form_submit_button("إرسال الرسالة", use_container_width=True)
+        msg_text = st.text_input("Type your message here...")
+        send_btn = st.form_submit_button("Send Message", use_container_width=True)
         if send_btn:
             if msg_text.strip():
                 execute("""
                     INSERT INTO messages (sender_id, receiver_id, message)
                     VALUES (?, ?, ?)
                 """, (user["id"], target_id, msg_text))
-                create_notification(target_id, f"رسالة جديدة من {user['full_name']}", msg_text, "Chat")
+                create_notification(target_id, f"New Message from {user['full_name']}", msg_text, "Chat")
                 play_sound_alert()
                 st.rerun()
 
@@ -691,38 +796,38 @@ def job_description_library():
     st.info("Job description module active.")
 
 def crm():
-    page_header("CRM", "Companies and contacts.")
+    page_header("CRM", "Companies and contacts management.")
     companies = query("SELECT * FROM companies ORDER BY id DESC")
     if companies.empty: st.info("No companies yet.")
     else: st.dataframe(companies, use_container_width=True, hide_index=True)
 
 def opportunities():
-    page_header("Opportunities", "Commercial pipeline.")
+    page_header("Opportunities", "Commercial pipeline tracking.")
     data = query("SELECT * FROM opportunities ORDER BY id DESC")
     if data.empty: st.info("No opportunities.")
     else: st.dataframe(data, use_container_width=True, hide_index=True)
 
 def projects():
-    page_header("Projects", "Track delivery.")
+    page_header("Projects", "Project delivery and milestones.")
     data = query("SELECT * FROM projects ORDER BY id DESC")
     if data.empty: st.info("No projects.")
     else: st.dataframe(data, use_container_width=True, hide_index=True)
 
 def governance():
-    page_header("Governance", "Policies and records.")
+    page_header("Governance", "Company policies and records.")
     data = query("SELECT * FROM governance ORDER BY id DESC")
     if data.empty: st.info("No governance records.")
     else: st.dataframe(data, use_container_width=True, hide_index=True)
 
 def email_assistant():
-    page_header("Email Intelligence", "Mailbox monitoring.")
+    page_header("Email Intelligence", "Mailbox monitoring system.")
     st.info("Email module active.")
 
 def ai_company_research():
     page_header("AI Company Research", "Analyze company websites and generate executive intelligence reports.")
     
     with st.form("company_research_form"):
-        company_input = st.text_input("Company Website URL or Name", placeholder="e.g., https://example.com or company name")
+        company_input = st.text_input("Company Website URL or Name", placeholder="e.g., https://example.com")
         analysis_focus = st.selectbox("Analysis Focus", [
             "Comprehensive Overview & Strategy",
             "Business Model & Revenue Streams",
@@ -745,17 +850,16 @@ def ai_company_research():
 <hr style="border-color:rgba(56,189,248,0.2);">
 
 <h4>1. Executive Summary</h4>
-<p>The target entity operates within a dynamic market sector, demonstrating active digital presence and strategic commercial positioning aligned with modern industry standards.</p>
+<p>The target entity operates within a dynamic market sector, demonstrating active digital presence and strategic commercial positioning.</p>
 
 <h4>2. Core Offerings & Business Activities</h4>
 <ul>
 <li>Specialized enterprise services and product delivery.</li>
 <li>Customer-centric operational workflows and digital infrastructure.</li>
-<li>Scalable business models aimed at regional and international expansion.</li>
 </ul>
 
 <h4>3. Strategic Insights & Opportunities</h4>
-<p>High potential for strategic alignment, joint ventures, or supply chain integration within MASAR's consulting framework.</p>
+<p>High potential for strategic alignment or joint venture within MASAR's consulting framework.</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -764,16 +868,16 @@ def admin_center():
     if user["role"] != "Admin":
         st.error("Administrator access required.")
         return
-    page_header("Admin Control Center", "Manage employees and system.")
+    page_header("Admin Control Center", "Manage employees and system settings.")
     employees = query("SELECT id, employee_code, full_name, role, active FROM employees ORDER BY id DESC")
     st.dataframe(employees, use_container_width=True, hide_index=True)
 
 def notifications_center():
     user = st.session_state.user
-    page_header("Notifications", "System alerts.")
+    page_header("Notifications", "System alerts and notifications.")
     notifs = query("SELECT * FROM notifications WHERE employee_id = ? ORDER BY id DESC", (user["id"],))
     if notifs.empty:
-        st.info("No new notifications.")
+        st.info("No notifications.")
     else:
         for r in notifs.iterrows():
             row = r[1]
@@ -790,11 +894,11 @@ def performance_center():
     user = st.session_state.user
     page_header("Performance Center", "Employee performance overview.")
     score = calculate_employee_performance(user["id"])
-    kpi("My Performance", f"{score}%")
+    kpi("My Performance Score", f"{score}%")
 
 def global_search():
-    page_header("Search", "Global search.")
-    term = st.text_input("Search", placeholder="Type to search...")
+    page_header("Global Search", "Search system database.")
+    term = st.text_input("Search Term", placeholder="Type keywords...")
     if term.strip():
         st.info(f"Searching for: {term}")
 
@@ -815,11 +919,11 @@ def sidebar():
     
     st.sidebar.divider()
     
-    # 🔔 زر تفاعلي مباشر لفتح حظر الصوت على الأيباد
-    st.sidebar.markdown("### 🔊 تفعيل الصوت للأيباد")
-    if st.sidebar.button("اختبار وتشغيل الصوت الآن", use_container_width=True):
+    # iPad HTML Audio Direct Unlock Button
+    st.sidebar.markdown(f"### {t('audio_fix')}")
+    if st.sidebar.button(t('test_sound'), use_container_width=True):
         play_sound_alert()
-        st.sidebar.success("تم تفعيل الصوت بنجاح!")
+        st.sidebar.success(t('sound_success'))
 
     st.sidebar.divider()
     st.sidebar.markdown(f"**{user['full_name']}**")
@@ -827,18 +931,18 @@ def sidebar():
     
     unread = unread_notifications(user["id"])
     menu = [
-        "Dashboard", "My Workspace", "Tasks", "Internal Chat", "CRM",
-        "Opportunities", "Projects", "Performance", "Job Descriptions",
-        "AI Company Research", "Email Intelligence", "Notifications", "Search"
+        t('dashboard'), t('my_workspace'), t('tasks'), t('internal_chat'), t('crm'),
+        t('opportunities'), t('projects'), t('performance'), t('job_descriptions'),
+        t('ai_research'), t('email_intelligence'), t('notifications'), t('search')
     ]
     if user["role"] == "Admin":
-        menu += ["Admin Control Center", "Governance"]
+        menu += [t('admin_center'), t('governance')]
 
-    selected = st.sidebar.radio("Navigation", menu, label_visibility="collapsed")
+    selected = st.sidebar.radio(t('navigation'), menu, label_visibility="collapsed")
     
     st.sidebar.divider()
-    st.sidebar.caption(f"Notifications: {unread}")
-    if st.sidebar.button("Logout", use_container_width=True):
+    st.sidebar.caption(f"Unread Notifications: {unread}")
+    if st.sidebar.button(t('logout'), use_container_width=True):
         log_event(user["id"], user["employee_code"], "LOGOUT")
         st.session_state.clear()
         st.rerun()
@@ -862,21 +966,22 @@ if user.get("must_change_pin"):
 
 page = sidebar()
 
-if page == "Dashboard": dashboard()
-elif page == "My Workspace": employee_dashboard()
-elif page == "Tasks": task_organizer()
-elif page == "Internal Chat": internal_chat()
-elif page == "CRM": crm()
-elif page == "Opportunities": opportunities()
-elif page == "Projects": projects()
-elif page == "Performance": performance_center()
-elif page == "Job Descriptions": job_description_library()
-elif page == "AI Company Research": ai_company_research()
-elif page == "Email Intelligence": email_assistant()
-elif page == "Notifications": notifications_center()
-elif page == "Search": global_search()
-elif page == "Admin Control Center": admin_center()
-elif page == "Governance": governance()
+# Map selected sidebar string back to router logic
+if page in ["Dashboard", "لوحة القيادة"]: dashboard()
+elif page in ["My Workspace", "مساحة العمل"]: employee_dashboard()
+elif page in ["Tasks & Organizer", "المهام والمنظم"]: task_organizer()
+elif page in ["Internal Chat", "الدردشة الداخلية"]: internal_chat()
+elif page in ["CRM", "إدارة علاقات العملاء"]: crm()
+elif page in ["Opportunities", "الفرص التجارية"]: opportunities()
+elif page in ["Projects", "المشاريع"]: projects()
+elif page in ["Performance", "الأداء"]: performance_center()
+elif page in ["Job Descriptions", "التوصيف الوظيفي"]: job_description_library()
+elif page in ["AI Company Research", "بحث الشركات بالذكاء الاصطناعي"]: ai_company_research()
+elif page in ["Email Intelligence", "ذكاء البريد الإلكتروني"]: email_assistant()
+elif page in ["Notifications", "الإشعارات"]: notifications_center()
+elif page, page in ["Search", "البحث"]: global_search()
+elif page in ["Admin Control Center", "مركز التحكم الإداري"]: admin_center()
+elif page in ["Governance", "الحوكمة"]: governance()
 
 st.markdown("""
     <div style="text-align:center; color:#64748b; margin-top:50px; padding:20px; font-size:11px;">
