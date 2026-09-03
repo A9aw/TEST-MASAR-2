@@ -1,6 +1,6 @@
 # ============================================================
 # MASAR INTELLIGENCE OS
-# V4.7 - STABLE SINGLE FILE EDITION (IPAD AUDIO & ITERATION FIX)
+# V4.8 - STABLE SINGLE FILE EDITION (IPAD AUDIO UNLOCK FIX)
 # ============================================================
 
 import streamlit as st
@@ -288,7 +288,7 @@ def generate_temp_pin(length=6):
     return "".join(secrets.choice(chars) for _ in range(length))
 
 def play_sound_alert():
-    """تشغيل صوت تنبيه باستخدام عنصر HTML5 Audio ليتوافق مع متصفحات الأيباد والموبايل"""
+    """تشغيل صوت تنبيه متوافق تماماً مع الأيباد عبر عنصر Audio مباشر"""
     sound_script = """
     <script>
     try {
@@ -813,6 +813,14 @@ def sidebar():
         </div>
     """, unsafe_allow_html=True)
     
+    st.sidebar.divider()
+    
+    # 🔔 زر تفاعلي مباشر لفتح حظر الصوت على الأيباد
+    st.sidebar.markdown("### 🔊 تفعيل الصوت للأيباد")
+    if st.sidebar.button("اختبار وتشغيل الصوت الآن", use_container_width=True):
+        play_sound_alert()
+        st.sidebar.success("تم تفعيل الصوت بنجاح!")
+
     st.sidebar.divider()
     st.sidebar.markdown(f"**{user['full_name']}**")
     st.sidebar.caption(f"{user['employee_code']} • {user['role']}")
