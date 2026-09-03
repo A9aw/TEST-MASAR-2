@@ -5,3 +5,4 @@ beautifulsoup4
 openpyxl
 xlsxwriter
 python-docx
+pip install duckduckgo-search
