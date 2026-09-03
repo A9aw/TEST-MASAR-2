@@ -5,14 +5,13 @@ import plotly.express as px
 import requests
 import hashlib
 import base64
-import os
 from bs4 import BeautifulSoup
 from datetime import datetime, date
 from io import BytesIO
 
 # =========================================================
 # MASAR INTELLIGENCE OS
-# VERSION 3.0 (Enterprise Edition)
+# VERSION 3.0 (Full Enterprise Edition)
 # =========================================================
 
 APP_NAME = "MASAR Intelligence OS"
@@ -180,7 +179,6 @@ def init_db():
     )
     """)
 
-    # New Table: Projects & Deliverables
     cur.execute("""
     CREATE TABLE IF NOT EXISTS projects (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -455,6 +453,311 @@ def employee_dashboard():
             st.dataframe(tasks[["title", "priority", "status", "completion", "due_date"]], use_container_width=True, hide_index=True)
 
 # =========================================================
+# TASK ORGANIZER
+# =========================================================
+
+def task_organizer():
+    header("Task Organizer", "Assign, monitor and evaluate employee execution")
+    employees = query("SELECT id, full_name, position FROM employees WHERE status='Active' ORDER BY full_name")
+    role = st.session_state["user_role"]
+    user_id = st.session_state["user_id"]
+
+    if role not in ["Admin", "CEO", "Founder & Managing Director"]:
+        tasks = query("SELECT * FROM tasks WHERE assigned_to=? ORDER BY due_date", (user_id,))
+        st.markdown("### My Tasks")
+        if not tasks.empty:
+            for _, task in tasks.iterrows():
+                st.markdown(f"**{task['title']}**\n\nPriority: {task['priority']}  \nDue: {task['due_date']}  \nStatus: {task['status']}")
+                progress = st.slider(f"Completion — Task {task['id']}", 0, 100, int(task["completion"]), key=f"progress_{task['id']}")
+                if st.button("Update", key=f"update_{task['id']}"):
+                    status = "Completed" if progress == 100 else "In Progress"
+                    completed_at = datetime.now().isoformat() if progress == 100 else None
+                    execute("UPDATE tasks SET completion=?, status=?, completed_at=? WHERE id=?", (progress, status, completed_at, int(task["id"])))
+                    st.success("Task updated.")
+                    st.rerun()
+        else:
+            st.info("No tasks assigned.")
+        return
+
+    tab1, tab2, tab3 = st.tabs(["Task Board", "Create Task", "Performance Reviews"])
+    with tab1:
+        tasks = query("""
+            SELECT t.id, e.full_name AS employee, t.title, t.priority, t.status, t.completion, t.due_date 
+            FROM tasks t LEFT JOIN employees e ON t.assigned_to=e.id ORDER BY t.due_date
+        """)
+        st.dataframe(tasks, use_container_width=True, hide_index=True)
+
+    with tab2:
+        employee_map = dict(zip(employees["full_name"], employees["id"]))
+        with st.form("create_task"):
+            employee = st.selectbox("Assign To", list(employee_map.keys()))
+            title = st.text_input("Task Title")
+            description = st.text_area("Description")
+            c1, c2, c3 = st.columns(3)
+            with c1: priority = st.selectbox("Priority", ["Low", "Medium", "High", "Critical"])
+            with c2: due_date = st.date_input("Due Date")
+            with c3: completion = st.slider("Initial Completion", 0, 100, 0)
+            submit = st.form_submit_button("CREATE TASK")
+            if submit:
+                execute(
+                    "INSERT INTO tasks (assigned_to, created_by, title, description, priority, status, completion, due_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (employee_map[employee], user_id, title, description, priority, "Pending", completion, due_date.isoformat(), datetime.now().isoformat())
+                )
+                st.success("Task assigned.")
+                st.rerun()
+
+    with tab3:
+        employee_map = dict(zip(employees["full_name"], employees["id"]))
+        employee = st.selectbox("Employee", list(employee_map.keys()), key="review_employee")
+        rating = st.slider("Manager Rating", 0, 100, 80)
+        period = st.text_input("Review Period", value=datetime.now().strftime("%B %Y"))
+        notes = st.text_area("Performance Notes")
+        if st.button("SAVE PERFORMANCE REVIEW"):
+            execute(
+                "INSERT INTO performance_reviews (employee_id, period, manager_rating, notes, reviewed_by, reviewed_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (employee_map[employee], period, rating, notes, user_id, datetime.now().isoformat())
+            )
+            st.success("Performance review saved.")
+            st.rerun()
+
+# =========================================================
+# PERFORMANCE CENTER
+# =========================================================
+
+def performance_center():
+    header("Performance Center", "Executive view of employee performance")
+    employees = query("SELECT * FROM employees WHERE status='Active' ORDER BY full_name")
+    records = []
+    for _, employee in employees.iterrows():
+        score = calculate_performance(int(employee["id"]))
+        records.append({
+            "Employee": employee["full_name"], "Position": employee["position"], "Role": employee["role"],
+            "Performance": score["score"], "Task Completion": score["task_score"],
+            "On-Time Delivery": score["on_time"], "Manager Rating": score["manager_rating"]
+        })
+    df = pd.DataFrame(records)
+    if df.empty:
+        st.info("No employee performance data.")
+        return
+    st.dataframe(df, use_container_width=True, hide_index=True)
+    fig = px.bar(df, x="Employee", y="Performance", text="Performance")
+    fig.update_layout(template="plotly_dark", yaxis_range=[0, 100])
+    st.plotly_chart(fig, use_container_width=True)
+
+# =========================================================
+# INTERNAL CHAT
+# =========================================================
+
+def internal_chat():
+    header("Internal Chat", "Secure employee-to-employee communication")
+    current_user = st.session_state["user_id"]
+    employees = query("SELECT id, full_name, position FROM employees WHERE id != ? AND status='Active' ORDER BY full_name", (current_user,))
+    if employees.empty:
+        st.info("No other employees available.")
+        return
+    employee_map = dict(zip(employees["full_name"], employees["id"]))
+    selected = st.selectbox("Chat With", list(employee_map.keys()))
+    receiver = employee_map[selected]
+
+    messages = query("""
+        SELECT m.*, e.full_name AS sender FROM messages m LEFT JOIN employees e ON m.sender_id=e.id 
+        WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?) ORDER BY created_at
+    """, (current_user, receiver, receiver, current_user))
+
+    for _, msg in messages.iterrows():
+        css = "chat-me" if int(msg["sender_id"]) == current_user else "chat-other"
+        st.markdown(f"""
+            <div class="chat-message {css}">
+                <b>{msg['sender']}</b><br>{msg['message']}
+                <div style="color:#71849A; font-size:10px; margin-top:5px;">{msg['created_at']}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with st.form("message_form"):
+        message = st.text_input("Message")
+        send = st.form_submit_button("SEND")
+        if send and message.strip():
+            execute("INSERT INTO messages (sender_id, receiver_id, message, created_at) VALUES (?, ?, ?, ?)",
+                    (current_user, receiver, message, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            st.rerun()
+
+# =========================================================
+# JOB DESCRIPTIONS
+# =========================================================
+
+def job_descriptions():
+    header("Job Description Library", "Central employee documentation repository")
+    employees = query("SELECT id, full_name, position FROM employees ORDER BY full_name")
+    tab1, tab2 = st.tabs(["Document Library", "Upload Word Document"])
+
+    with tab1:
+        docs = query("""
+            SELECT j.id, j.title, j.file_name, e.full_name AS employee, j.uploaded_at, j.notes 
+            FROM job_descriptions j LEFT JOIN employees e ON j.employee_id=e.id ORDER BY j.id DESC
+        """)
+        if docs.empty:
+            st.info("No job descriptions uploaded yet.")
+        else:
+            st.dataframe(docs, use_container_width=True, hide_index=True)
+            selected = st.selectbox("Select Document", docs["id"].tolist())
+            data = query("SELECT * FROM job_descriptions WHERE id=?", (int(selected),)).iloc[0]
+            st.markdown(f"### {data['title']}")
+            if data["extracted_text"]:
+                with st.expander("View extracted Word content"):
+                    st.text_area("Content", data["extracted_text"], height=450)
+            st.download_button("DOWNLOAD WORD FILE", data=data["file_data"], file_name=data["file_name"],
+                               mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+    with tab2:
+        if st.session_state["user_role"] != "Admin":
+            st.warning("Only Admin can upload Job Descriptions.")
+            return
+        employee_map = {f"{row['full_name']} — {row['position']}": int(row["id"]) for _, row in employees.iterrows()}
+        title = st.text_input("Document Title")
+        employee = st.selectbox("Employee", ["General"] + list(employee_map.keys()))
+        uploaded = st.file_uploader("Upload Word File", type=["docx"])
+        notes = st.text_area("Notes")
+
+        if st.button("UPLOAD DOCUMENT"):
+            if uploaded is None:
+                st.error("Please upload a Word file.")
+            else:
+                extracted = ""
+                try:
+                    from docx import Document
+                    doc = Document(BytesIO(uploaded.getvalue()))
+                    extracted = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+                except Exception:
+                    extracted = "Unable to extract text."
+                employee_id = employee_map[employee] if employee != "General" else None
+                execute(
+                    "INSERT INTO job_descriptions (employee_id, title, file_name, file_data, extracted_text, uploaded_by, uploaded_at, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (employee_id, title or uploaded.name, uploaded.name, uploaded.getvalue(), extracted, st.session_state["user_id"], datetime.now().isoformat(), notes)
+                )
+                st.success("Job Description uploaded successfully.")
+                st.rerun()
+
+# =========================================================
+# ADMIN CONTROL CENTER
+# =========================================================
+
+def admin_center():
+    header("Admin Control Center", "System administration and employee account management")
+    tab1, tab2, tab3 = st.tabs(["Employee Accounts", "Branding", "System"])
+
+    with tab1:
+        employees = query("SELECT id, employee_code, full_name, position, email, role, status, created_at FROM employees ORDER BY id DESC")
+        st.dataframe(employees, use_container_width=True, hide_index=True)
+        st.markdown("### Create Employee")
+        with st.form("employee_creation"):
+            c1, c2 = st.columns(2)
+            with c1:
+                code = st.text_input("Employee Code")
+                name = st.text_input("Full Name")
+                position = st.text_input("Position")
+                email = st.text_input("Email")
+            with c2:
+                phone = st.text_input("Phone")
+                role = st.selectbox("Role", ["Employee", "Manager", "CEO", "Founder & Managing Director", "Admin"])
+                pin = st.text_input("PIN", type="password")
+                status = st.selectbox("Status", ["Active", "Inactive"])
+            submit = st.form_submit_button("CREATE ACCOUNT")
+            if submit:
+                try:
+                    execute(
+                        "INSERT INTO employees (employee_code, full_name, position, email, phone, pin_hash, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        (code.upper().strip(), name, position, email, phone, hash_pin(pin), role, status, datetime.now().isoformat())
+                    )
+                    st.success("Employee account created.")
+                    st.rerun()
+                except sqlite3.IntegrityError:
+                    st.error("Employee Code already exists.")
+
+    with tab2:
+        st.markdown("### MASAR Brand Settings")
+        uploaded_logo = st.file_uploader("Change MASAR Logo", type=["png", "jpg", "jpeg", "webp"])
+        if st.button("SAVE NEW LOGO"):
+            if uploaded_logo:
+                encoded = base64.b64encode(uploaded_logo.getvalue()).decode()
+                execute("INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)", ("logo", encoded))
+                st.success("Logo updated successfully.")
+                st.rerun()
+            else:
+                st.warning("Select a logo first.")
+        current_logo = get_logo()
+        if current_logo:
+            st.image(current_logo, width=220)
+
+    with tab3:
+        st.markdown("### Security")
+        st.info("Employee authentication is enabled.")
+
+# =========================================================
+# CRM
+# =========================================================
+
+def crm():
+    header("CRM & Companies", "Strategic account management")
+    companies = query("SELECT * FROM companies ORDER BY id DESC")
+    tab1, tab2 = st.tabs(["Companies", "Add Company"])
+    with tab1:
+        search = st.text_input("Search Companies")
+        if search:
+            companies = companies[companies["name"].str.contains(search, case=False, na=False)]
+        st.dataframe(companies, use_container_width=True, hide_index=True)
+    with tab2:
+        with st.form("company_form"):
+            name = st.text_input("Company Name")
+            website = st.text_input("Website")
+            industry = st.text_input("Industry")
+            country = st.text_input("Country")
+            size = st.selectbox("Company Size", ["Startup", "Small", "Medium", "Large", "Enterprise", "Government"])
+            status = st.selectbox("Status", ["Prospect", "Target", "Active Client", "Partner", "Dormant"])
+            description = st.text_area("Description")
+            submit = st.form_submit_button("ADD COMPANY")
+            if submit and name.strip():
+                execute(
+                    "INSERT INTO companies (name, website, industry, country, size, status, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (name, website, industry, country, size, status, description, datetime.now().isoformat())
+                )
+                st.success("Company added.")
+                st.rerun()
+
+# =========================================================
+# OPPORTUNITIES
+# =========================================================
+
+def opportunities():
+    header("Opportunities", "MASAR commercial pipeline")
+    df = query("""
+        SELECT o.id, c.name AS company, o.title, o.service, o.stage, o.value, o.probability, o.next_action, o.next_action_date 
+        FROM opportunities o LEFT JOIN companies c ON o.company_id=c.id ORDER BY o.id DESC
+    """)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+    companies = query("SELECT id,name FROM companies ORDER BY name")
+    if companies.empty:
+        st.info("Add companies first.")
+        return
+    company_map = dict(zip(companies["name"], companies["id"]))
+    with st.form("opportunity_form"):
+        company = st.selectbox("Company", list(company_map.keys()))
+        title = st.text_input("Opportunity")
+        service = st.selectbox("Service", ["Government Affairs", "Public Relations", "Business Development", "Strategic Advisory", "Market Entry", "Stakeholder Management"])
+        stage = st.selectbox("Stage", ["Lead", "Qualified", "Meeting", "Proposal", "Negotiation", "Won", "Lost"])
+        value = st.number_input("Estimated Value", min_value=0.0, step=1000.0)
+        probability = st.slider("Probability", 0, 100, 25)
+        next_action = st.text_input("Next Action")
+        next_date = st.date_input("Next Action Date")
+        submit = st.form_submit_button("CREATE OPPORTUNITY")
+        if submit:
+            execute(
+                "INSERT INTO opportunities (company_id, title, service, stage, value, probability, next_action, next_action_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (company_map[company], title, service, stage, value, probability, next_action, next_date.isoformat(), datetime.now().isoformat())
+            )
+            st.success("Opportunity created.")
+            st.rerun()
+
+# =========================================================
 # INTELLIGENCE CENTER (AI INTEGRATED)
 # =========================================================
 
@@ -479,16 +782,15 @@ def intelligence():
                 description = meta.get("content", "") if meta else ""
                 text = soup.get_text(" ", strip=True)[:15000]
 
-                # محاكاة تحليل ذكي متقدم أو ربط مباشر بالنموذج
                 ai_analysis = f"""
 ### تحليل ذكاء الأعمال (MASAR AI Engine):
 - **طبيعة النشاط:** الشركة تعمل في مجالات مرتبطة بـ {title}.
 - **الفرص التجارية المتاحة لـ MASAR:**
   1. تقديم استشارات تطوير أعمال لتعزيز التوسع الإقليمي.
-  2. إدارة الشؤون الحكومية والتنظيمية (Government Affairs) إذا كانت تتعامل في قطاعات منظمة.
+  2. إدارة الشؤون الحكومية والتنظيمية (Government Affairs).
   3. إدارة العلاقات العامة والاتصال المؤسسي للسمعة الإيجابية.
 - **مسودة بريد مقترحة (Pitch Email):**
-  "عزيزي فريق العمل في {title}، لاحظنا تميزكم في السوق ونعتقد أن شراكتكم مع شركة مسار للاستشارات وتطوير الأعمال يمكن أن تدعم خططكم التوسعية..."
+  "عزيزي فريق العمل في {title}, لاحظنا تميزكم في السوق ونعتقد أن شراكتكم مع شركة مسار للاستشارات وتطوير الأعمال يمكن أن تدعم خططكم التوسعية..."
                 """
 
                 st.session_state["intelligence"] = {
@@ -499,46 +801,35 @@ def intelligence():
                 }
                 st.success("Website scan & AI analysis completed.")
             except Exception:
-                st.error("Unable to access this website or perform scan.")
+                st.error("Unable to access this website.")
 
     if "intelligence" in st.session_state:
         intel = st.session_state["intelligence"]
         st.markdown(f"## {intel['title']}")
         if intel["description"]:
             st.info(intel["description"])
-        
         t1, t2, t3 = st.tabs(["AI Strategic Report", "Website Content", "MASAR Services"])
-        with t1:
-            st.markdown(intel["ai"])
-        with t2:
-            st.text_area("Extracted Content", intel["text"], height=300)
-        with t3:
-            st.markdown("""
-            - **Government Affairs & Public Relations**
-            - **Business Development & Strategic Advisory**
-            - **Market Entry Solutions**
-            """)
+        with t1: st.markdown(intel["ai"])
+        with t2: st.text_area("Extracted Content", intel["text"], height=300)
+        with t3: st.markdown("- **Government Affairs & PR**\n- **Business Development & Strategy**")
 
 # =========================================================
-# PROJECTS & DELIVERABLES (NEW)
+# PROJECTS & CONTRACTS (NEW)
 # =========================================================
 
 def projects_center():
     header("Projects & Contracts", "Manage Won Opportunities & Deliverables")
-    
     tab1, tab2 = st.tabs(["Active Projects", "Convert Opportunity to Project"])
-    
     with tab1:
         projects = query("SELECT * FROM projects ORDER BY id DESC")
         if projects.empty:
-            st.info("No active projects found. Convert a 'Won' opportunity to start.")
+            st.info("No active projects found.")
         else:
             st.dataframe(projects, use_container_width=True, hide_index=True)
-            
     with tab2:
         won_opps = query("SELECT o.id, o.title, c.name FROM opportunities o LEFT JOIN companies c ON o.company_id=c.id WHERE o.stage='Won'")
         if won_opps.empty:
-            st.warning("No 'Won' opportunities available to convert.")
+            st.warning("No 'Won' opportunities available.")
         else:
             opp_map = {f"{row['name']} — {row['title']}": row['id'] for _, row in won_opps.iterrows()}
             with st.form("convert_form"):
@@ -547,13 +838,12 @@ def projects_center():
                 p_value = st.number_input("Project Value", min_value=0.0, step=1000.0)
                 deadline = st.date_input("Deadline")
                 notes = st.text_area("Scope & Deliverables Notes")
-                
                 if st.form_submit_button("CREATE PROJECT"):
                     execute(
                         "INSERT INTO projects (opportunity_id, title, status, start_date, deadline, value, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
                         (opp_map[selected_opp], p_title, "In Progress", datetime.now().isoformat(), deadline.isoformat(), p_value, notes)
                     )
-                    st.success("Project successfully created from opportunity!")
+                    st.success("Project successfully created!")
                     st.rerun()
 
 # =========================================================
@@ -562,21 +852,20 @@ def projects_center():
 
 def dashboard():
     header("Executive Dashboard", "MASAR management command center")
-    
     companies = query("SELECT * FROM companies")
     opportunities_df = query("SELECT * FROM opportunities")
+    tasks = query("SELECT * FROM tasks")
     employees = query("SELECT * FROM employees WHERE status='Active'")
     
     pipeline = opportunities_df["value"].sum() if not opportunities_df.empty else 0
     
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     with c1: kpi("Companies", len(companies), "CRM")
     with c2: kpi("Employees", len(employees), "Active users")
     with c3: kpi("Pipeline", f"{pipeline:,.0f}", "Commercial value")
+    with c4: kpi("Tasks", len(tasks), "Total tasks")
     
     st.write("")
-    
-    # زر تصدير تقارير الإكسيل
     if st.button("📥 Export Executive Report to Excel"):
         output = BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -584,13 +873,27 @@ def dashboard():
             opportunities_df.to_excel(writer, sheet_name='Opportunities', index=False)
             employees.to_excel(writer, sheet_name='Employees', index=False)
         processed_data = output.getvalue()
-        
-        st.download_button(
-            label="Download Excel Spreadsheet",
-            data=processed_data,
-            file_name=f"MASAR_Executive_Report_{date.today()}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        st.download_button("Download Excel Spreadsheet", data=processed_data, file_name=f"MASAR_Executive_Report_{date.today()}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+# =========================================================
+# GOVERNANCE
+# =========================================================
+
+def governance():
+    header("Governance", "Policies, procedures and corporate documentation")
+    df = query("SELECT id, category, title, review_date, status FROM governance ORDER BY id DESC")
+    st.dataframe(df, use_container_width=True, hide_index=True)
+    if st.session_state["user_role"] == "Admin":
+        with st.form("gov_form"):
+            category = st.selectbox("Category", ["Policy", "Procedure", "Governance", "Other"])
+            title = st.text_input("Title")
+            review = st.date_input("Review Date")
+            content = st.text_area("Content", height=200)
+            if st.form_submit_button("SAVE DOCUMENT"):
+                execute("INSERT INTO governance (category, title, content, review_date, status) VALUES (?, ?, ?, ?, ?)",
+                        (category, title, content, review.isoformat(), "Active"))
+                st.success("Document saved.")
+                st.rerun()
 
 # =========================================================
 # AUTH & ROUTER
@@ -603,7 +906,6 @@ if not st.session_state["authenticated"]:
     login()
     st.stop()
 
-# Sidebar Navigation
 display_logo()
 st.sidebar.markdown("---")
 st.sidebar.markdown(f"""
@@ -618,13 +920,24 @@ st.sidebar.markdown("---")
 
 pages = [
     "🏠 My Dashboard",
+    "✅ My Tasks",
+    "💬 Internal Chat",
+    "📁 Job Descriptions",
+    "🏢 CRM & Companies",
     "💼 Opportunities",
     "🚀 Projects & Contracts",
     "🧠 Intelligence Center",
-    "🏢 CRM & Companies"
+    "⚖️ Governance"
 ]
 
 role = st.session_state["user_role"]
+if role in ["Admin", "CEO", "Founder & Managing Director"]:
+    pages.insert(1, "📊 Performance Center")
+    pages.insert(2, "📋 Task Management")
+
+if role == "Admin":
+    pages.insert(3, "👑 Admin Control Center")
+
 page = st.sidebar.radio("Navigation", pages)
 
 st.sidebar.markdown("---")
@@ -632,16 +945,17 @@ if st.sidebar.button("🚪 Logout", use_container_width=True):
     st.session_state.clear()
     st.rerun()
 
-# Router Execution
+# Router
 if page == "🏠 My Dashboard":
-    dashboard()
-elif page == "🚀 Projects & Contracts":
-    projects_center()
-elif page == "🧠 Intelligence Center":
-    intelligence()
-elif page == "🏢 CRM & Companies":
-    header("CRM", "Account Management")
-    st.dataframe(query("SELECT * FROM companies"), use_container_width=True)
-elif page == "💼 Opportunities":
-    header("Opportunities", "Sales Pipeline")
-    st.dataframe(query("SELECT * FROM opportunities"), use_container_width=True)
+    dashboard() if role in ["Admin", "CEO", "Founder & Managing Director"] else employee_dashboard()
+elif page == "📊 Performance Center": performance_center()
+elif page == "📋 Task Management": task_organizer()
+elif page == "👑 Admin Control Center": admin_center()
+elif page == "✅ My Tasks": task_organizer()
+elif page == "💬 Internal Chat": internal_chat()
+elif page == "📁 Job Descriptions": job_descriptions()
+elif page == "🏢 CRM & Companies": crm()
+elif page == "💼 Opportunities": opportunities()
+elif page == "🚀 Projects & Contracts": projects_center()
+elif page == "🧠 Intelligence Center": intelligence()
+elif page == "⚖️ Governance": governance()
