@@ -175,401 +175,370 @@ def add_column_if_missing(table, column, definition):
 def init_db():
 
     conn = get_db()
-
     cur = conn.cursor()
 
-    cur.execute("""
+    # ========================================================
+    # EMPLOYEES
+    # ========================================================
 
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS employees (
-
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-
             employee_code TEXT UNIQUE,
-
             full_name TEXT NOT NULL,
-
             mobile TEXT,
-
             email TEXT,
-
             role TEXT DEFAULT 'Employee',
-
             pin_hash TEXT NOT NULL,
-
             active INTEGER DEFAULT 1,
-
             must_change_pin INTEGER DEFAULT 0,
-
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
-
         )
-
     """)
 
-    cur.execute("""
+    # ========================================================
+    # MESSAGES
+    # ========================================================
 
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS messages (
-
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-
             sender_id INTEGER,
-
             receiver_id INTEGER,
-
             message TEXT,
-
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-
             is_read INTEGER DEFAULT 0
-
         )
-
     """)
 
-    cur.execute("""
+    # ========================================================
+    # TASKS
+    # ========================================================
 
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
-
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-
             title TEXT NOT NULL,
-
             description TEXT,
-
             assigned_to INTEGER,
-
             created_by INTEGER,
-
             priority TEXT DEFAULT 'Medium',
-
             status TEXT DEFAULT 'Pending',
-
             due_date TEXT,
-
             completed_at TEXT,
-
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
-
         )
-
     """)
 
-    cur.execute("""
+    # ========================================================
+    # PERFORMANCE
+    # ========================================================
 
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS performance_reviews (
-
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-
             employee_id INTEGER,
-
             rating REAL DEFAULT 0,
-
             notes TEXT,
-
             review_date TEXT DEFAULT CURRENT_TIMESTAMP,
-
             reviewer_id INTEGER
-
         )
-
     """)
 
-    cur.execute("""
+    # ========================================================
+    # JOB DESCRIPTIONS
+    # ========================================================
 
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS job_descriptions (
-
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-
             employee_id INTEGER,
-
             job_title TEXT,
-
             file_name TEXT,
-
             file_path TEXT,
-
             uploaded_by INTEGER,
-
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
-
         )
-
     """)
 
-    cur.execute("""
+    # ========================================================
+    # SETTINGS
+    # ========================================================
 
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS settings (
-
             key TEXT PRIMARY KEY,
-
             value TEXT
-
         )
-
     """)
 
-    cur.execute("""
+    # ========================================================
+    # COMPANIES
+    # ========================================================
 
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS companies (
-
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-
             name TEXT NOT NULL,
-
             website TEXT,
-
             industry TEXT,
-
             status TEXT DEFAULT 'Prospect',
-
             notes TEXT,
-
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
-
         )
-
     """)
 
-    cur.execute("""
+    # ========================================================
+    # CONTACTS
+    # ========================================================
 
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS contacts (
-
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-
             company_id INTEGER,
-
             name TEXT NOT NULL,
-
             title TEXT,
-
             mobile TEXT,
-
             email TEXT,
-
             notes TEXT,
-
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
-
         )
-
     """)
 
-    cur.execute("""
+    # ========================================================
+    # OPPORTUNITIES
+    # ========================================================
 
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS opportunities (
-
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-
             company_id INTEGER,
-
             title TEXT,
-
             value REAL DEFAULT 0,
-
             stage TEXT DEFAULT 'New',
-
             probability REAL DEFAULT 0,
-
             owner_id INTEGER,
-
             expected_close TEXT,
-
             notes TEXT,
-
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
-
         )
-
     """)
 
-    cur.execute("""
+    # ========================================================
+    # PROJECTS
+    # ========================================================
 
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS projects (
-
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-
             company_id INTEGER,
-
             name TEXT,
-
             status TEXT DEFAULT 'Planning',
-
             progress REAL DEFAULT 0,
-
             owner_id INTEGER,
-
             start_date TEXT,
-
             end_date TEXT,
-
             notes TEXT,
-
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
-
         )
-
     """)
 
-    cur.execute("""
+    # ========================================================
+    # GOVERNANCE
+    # ========================================================
 
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS governance (
-
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-
             title TEXT,
-
             category TEXT,
-
             description TEXT,
-
             owner_id INTEGER,
-
             review_date TEXT,
-
             status TEXT DEFAULT 'Active',
-
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
-
         )
-
     """)
 
-    cur.execute("""
+    # ========================================================
+    # LOGIN LOGS
+    # ========================================================
 
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS login_logs (
-
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-
             employee_id INTEGER,
-
             employee_code TEXT,
-
             event TEXT,
-
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
-
         )
-
     """)
 
-    cur.execute("""
+    # ========================================================
+    # NOTIFICATIONS
+    # ========================================================
 
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS notifications (
-
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-
             employee_id INTEGER,
-
             title TEXT,
-
             message TEXT,
-
             notification_type TEXT DEFAULT 'Info',
-
             is_read INTEGER DEFAULT 0,
-
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
-
         )
-
     """)
 
+    # ========================================================
+    # EMAILS
+    # ========================================================
+
     cur.execute("""
-
         CREATE TABLE IF NOT EXISTS emails (
-
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-
             message_uid TEXT UNIQUE,
-
             sender TEXT,
-
             subject TEXT,
-
             received_at TEXT,
-
             body TEXT,
-
             summary TEXT,
-
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
-
         )
-
     """)
 
     conn.commit()
-
     conn.close()
 
-    # Existing databases migration
+    # ========================================================
+    # SAFE MIGRATION FOR OLD DATABASES
+    # ========================================================
 
-    add_column_if_missing(
+    migrations = {
 
-        "employees",
+        "employees": {
+            "employee_code": "TEXT",
+            "full_name": "TEXT",
+            "mobile": "TEXT",
+            "email": "TEXT",
+            "role": "TEXT DEFAULT 'Employee'",
+            "pin_hash": "TEXT",
+            "active": "INTEGER DEFAULT 1",
+            "must_change_pin": "INTEGER DEFAULT 0",
+            "created_at": "TEXT"
+        },
 
-        "must_change_pin",
+        "messages": {
+            "sender_id": "INTEGER",
+            "receiver_id": "INTEGER",
+            "message": "TEXT",
+            "created_at": "TEXT",
+            "is_read": "INTEGER DEFAULT 0"
+        },
 
-        "INTEGER DEFAULT 0"
+        "tasks": {
+            "title": "TEXT",
+            "description": "TEXT",
+            "assigned_to": "INTEGER",
+            "created_by": "INTEGER",
+            "priority": "TEXT DEFAULT 'Medium'",
+            "status": "TEXT DEFAULT 'Pending'",
+            "due_date": "TEXT",
+            "completed_at": "TEXT",
+            "created_at": "TEXT"
+        },
 
-    )
+        "performance_reviews": {
+            "employee_id": "INTEGER",
+            "rating": "REAL DEFAULT 0",
+            "notes": "TEXT",
+            "review_date": "TEXT",
+            "reviewer_id": "INTEGER"
+        },
 
-    # Default Admin
+        "job_descriptions": {
+            "employee_id": "INTEGER",
+            "job_title": "TEXT",
+            "file_name": "TEXT",
+            "file_path": "TEXT",
+            "uploaded_by": "INTEGER",
+            "created_at": "TEXT"
+        }
+    }
 
-    admin = query_one(
+    # Add missing columns without destroying existing data
+    for table, columns in migrations.items():
 
-        "SELECT id FROM employees WHERE employee_code = ?",
+        try:
 
-        ("ADMIN",)
+            conn = get_db()
+            cur = conn.cursor()
 
-    )
+            cur.execute(
+                f"PRAGMA table_info({table})"
+            )
+
+            existing_columns = {
+                row[1]
+                for row in cur.fetchall()
+            }
+
+            for column, definition in columns.items():
+
+                if column not in existing_columns:
+
+                    try:
+
+                        cur.execute(
+                            f"""
+                            ALTER TABLE {table}
+                            ADD COLUMN {column} {definition}
+                            """
+                        )
+
+                    except Exception:
+                        pass
+
+            conn.commit()
+            conn.close()
+
+        except Exception:
+            pass
+
+    # ========================================================
+    # CREATE DEFAULT ADMIN
+    # ========================================================
+
+    admin = query_one("""
+        SELECT id
+        FROM employees
+        WHERE employee_code = ?
+    """, ("ADMIN",))
 
     if not admin:
 
         execute("""
-
             INSERT INTO employees
-
             (
-
                 employee_code,
-
                 full_name,
-
                 mobile,
-
                 email,
-
                 role,
-
                 pin_hash,
-
                 active,
-
                 must_change_pin
-
             )
-
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-
         """, (
-
             "ADMIN",
-
             "MASAR Administrator",
-
             "",
-
             "",
-
             "Admin",
-
             hash_pin("1234"),
-
             1,
-
             0
-
         ))
 
 # ============================================================
