@@ -656,7 +656,6 @@ def internal_chat():
 
     st.markdown("---")
 
-    # جلب الرسائل بين المستخدم والمستهدف
     messages = query("""
         SELECT * FROM messages 
         WHERE (sender_id = ? AND receiver_id = ?) 
@@ -680,7 +679,6 @@ def internal_chat():
                     </div>
                 """, unsafe_allow_html=True)
 
-    # نموذج إرسال رسالة جديدة
     with st.form("chat_form", clear_on_submit=True):
         msg_text = st.text_input("اكتب رسالتك هنا...")
         send_btn = st.form_submit_button("إرسال الرسالة", use_container_width=True)
