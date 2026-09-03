@@ -1,6 +1,6 @@
 # ============================================================
 # MASAR INTELLIGENCE OS
-# V4.5 - STABLE SINGLE FILE EDITION (CHAT & TASKS ENGINE)
+# V4.6 - STABLE SINGLE FILE EDITION (FIXED ITERATION & CHAT)
 # ============================================================
 
 import streamlit as st
@@ -595,8 +595,8 @@ def task_organizer():
                 t_desc = st.text_area("تفاصيل المهمة")
                 
                 emps = query("SELECT id, full_name, email FROM employees WHERE active = 1")
-                emp_options = {row["full_name"]: row["id"] for row in emps}
-                assigned_name = st.selectbox("تعيين إلى موظف", list(emp_options.keys()))
+                emp_options = {row["full_name"]: row["id"] for _, row in emps.iterrows()} if not emps.empty else {}
+                assigned_name = st.selectbox("تعيين إلى موظف", list(emp_options.keys()) if emp_options else ["لا توجد موظفين"])
                 
                 col1, col2, col3 = st.columns(3)
                 with col1: t_priority = st.selectbox("الأولوية", ["Low", "Medium", "High", "Urgent"])
@@ -607,6 +607,8 @@ def task_organizer():
                 if submit_task:
                     if not t_title.strip():
                         st.error("يرجى إدخال عنوان المهمة.")
+                    elif not emp_options:
+                        st.error("لا يوجد موظفون متاحون.")
                     else:
                         emp_id = emp_options[assigned_name]
                         execute("""
@@ -650,7 +652,7 @@ def internal_chat():
         st.info("لا يوجد موظفون آخرون متاحون للدردشة.")
         return
 
-    emp_dict = {f"{row['full_name']} ({row['employee_code']})": row["id"] for row in emps}
+    emp_dict = {f"{row['full_name']} ({row['employee_code']})": row["id"] for _, row in emps.iterrows()}
     selected_target_name = st.selectbox("اختر الموظف لبدء المحادثة", list(emp_dict.keys()))
     target_id = emp_dict[selected_target_name]
 
